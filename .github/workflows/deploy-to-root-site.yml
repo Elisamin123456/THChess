@@ -1,0 +1,34 @@
+name: Deploy To Root Site Subpath
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: thchess-root-site
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Publish dist to root site /THChess
+        uses: JamesIves/github-pages-deploy-action@v4.7.3
+        with:
+          token: ${{ secrets.ROOT_SITE_PAT }}
+          repository-name: Elisamin123456/elisamin123456.github.io
+          branch: main
+          folder: dist
+          target-folder: THChess
+          clean: false
+          single-commit: true
