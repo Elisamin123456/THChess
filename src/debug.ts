@@ -30,6 +30,8 @@ export interface DebugPanel {
   updateDualView(state: GameState): void;
 }
 
+const MAX_HASH_HISTORY = 256;
+
 function nowTimeText(): string {
   const date = new Date();
   const hh = String(date.getHours()).padStart(2, "0");
@@ -164,6 +166,16 @@ export function createDebugPanel(root: HTMLElement, options: DebugPanelOptions):
     }
   }
 
+  function trimHashMap(map: Map<number, string>): void {
+    while (map.size > MAX_HASH_HISTORY) {
+      const firstKey = map.keys().next().value;
+      if (typeof firstKey !== "number") {
+        return;
+      }
+      map.delete(firstKey);
+    }
+  }
+
   function refreshModeUi(): void {
     const isConnector = modeSelect.value === "connector";
     hashInput.disabled = !isConnector;
@@ -229,10 +241,12 @@ export function createDebugPanel(root: HTMLElement, options: DebugPanelOptions):
     },
     recordLocalHash(seq: number, hash: string): void {
       localHashMap.set(seq, hash);
+      trimHashMap(localHashMap);
       updateHashLine(seq);
     },
     recordRemoteHash(seq: number, hash: string): void {
       remoteHashMap.set(seq, hash);
+      trimHashMap(remoteHashMap);
       updateHashLine(seq);
     },
     updateDualView(state: GameState): void {

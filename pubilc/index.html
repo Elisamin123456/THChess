@@ -142,54 +142,186 @@
 
       .skill-panel {
         position: relative;
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 10px;
+        display: flex;
         align-items: center;
-        padding: 8px;
+        padding: 8px 10px;
       }
 
-      .skill-grid {
+      .skill-layout {
+        width: 100%;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .skill-left {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 12px;
+      }
+
+      .basic-skill-grid {
         display: grid;
-        grid-template-columns: repeat(8, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(0, 1fr));
         gap: 6px;
+        width: clamp(112px, 19vw, 156px);
+      }
+
+      .role-skill-grid {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: clamp(40px, 5.5vw, 56px);
+        gap: 8px;
+      }
+
+      .skill-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
       }
 
       .skill-btn {
-        border: 1px solid rgba(255, 255, 255, 0.75);
-        background: #000;
-        height: clamp(30px, 5.6vh, 42px);
+        position: relative;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border: none;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: transparent;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
         color: var(--fg);
         cursor: pointer;
+        overflow: hidden;
+        transition: background-color 120ms linear, color 120ms linear, opacity 120ms linear;
+      }
+
+      .hollow-frame {
+        position: relative;
+        border: 2px solid #fff;
+        box-shadow: inset 0 0 0 1px #000;
+      }
+
+      .hollow-frame::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border: 1px solid rgba(0, 0, 0, 0.95);
+        pointer-events: none;
+      }
+
+      .hollow-frame:hover:not(.skill-disabled):not(:disabled) {
+        background-color: #fff;
+        color: #000;
       }
 
       .skill-basic {
         font-family: "W3", "zpix", monospace;
-        font-size: clamp(11px, 2.1vh, 15px);
+        font-size: clamp(11px, 1.75vh, 15px);
       }
 
       .skill-role {
         font-family: "zpix", monospace;
-        font-size: 12px;
+        font-size: 0;
+      }
+
+      .skill-locked {
+        filter: grayscale(1);
+        opacity: 0.45;
+      }
+
+      .skill-duration {
+        position: absolute;
+        right: 2px;
+        top: 2px;
+        width: 14px;
+        height: 14px;
+        image-rendering: pixelated;
+        pointer-events: none;
+      }
+
+      .skill-tooltip {
+        position: absolute;
+        z-index: 8;
+        width: 210px;
+        border: 1px solid rgba(255, 255, 255, 0.85);
+        background: #000;
+        color: #fff;
+        padding: 6px;
+        font-size: 11px;
+        line-height: 1.35;
+      }
+
+      .unlock-popup {
+        position: absolute;
+        z-index: 9;
+        width: 182px;
+        border: 1px solid rgba(255, 255, 255, 0.9);
+        background: #000;
+        padding: 6px;
+      }
+
+      .unlock-text {
+        font-size: 11px;
+        line-height: 1.35;
+        margin-bottom: 6px;
+      }
+
+      .unlock-actions {
+        display: flex;
+        gap: 6px;
+      }
+
+      .unlock-btn {
+        flex: 1;
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        background: #000;
+        color: #fff;
+        height: 24px;
+        font-family: "zpix", monospace;
+        cursor: pointer;
+      }
+
+      .unlock-btn:disabled {
+        color: var(--disabled);
+        border-color: rgba(255, 255, 255, 0.35);
+        cursor: not-allowed;
       }
 
       .skill-usable {
         color: #fff;
-        -webkit-text-stroke: 1px #000;
+        -webkit-text-stroke: 0.6px #000;
       }
 
       .skill-disabled {
         color: var(--disabled);
         border-color: rgba(255, 255, 255, 0.35);
         cursor: not-allowed;
+        opacity: 0.7;
       }
 
       .skill-selected {
-        box-shadow: inset 0 0 0 2px #9fe8ff;
+        background-color: #2b67ff;
+        color: #fff;
       }
 
       .skill-quickcast {
-        box-shadow: inset 0 0 0 2px #4f9aff;
+        background-color: #2b67ff;
+        color: #fff;
+      }
+
+      .hollow-frame.skill-selected:hover:not(:disabled),
+      .hollow-frame.skill-quickcast:hover:not(:disabled) {
+        background-color: #2b67ff;
+        color: #fff;
       }
 
       .spirit-popup {
@@ -229,11 +361,12 @@
       }
 
       .end-turn-btn {
-        height: clamp(34px, 6.2vh, 48px);
-        min-width: 96px;
+        height: clamp(34px, 6.2vh, 46px);
+        min-width: 110px;
         border: 2px solid #fff;
-        background: #000;
+        background: transparent;
         color: #fff;
+        font-size: 12px;
         font-family: "zpix", monospace;
         cursor: pointer;
       }
@@ -315,6 +448,29 @@
           width: 96vw;
         }
 
+        .skill-layout {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
+        }
+
+        .skill-left {
+          justify-content: space-between;
+        }
+
+        .basic-skill-grid {
+          width: clamp(112px, 34vw, 152px);
+        }
+
+        .role-skill-grid {
+          grid-auto-columns: clamp(38px, 10vw, 52px);
+          gap: 6px;
+        }
+
+        .skill-actions {
+          justify-content: flex-start;
+        }
+
         .debug-panel {
           width: 96vw;
         }
@@ -329,6 +485,6 @@
     <div id="app"></div>
     <div id="debug-root"></div>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="./main.ts"></script>
   </body>
 </html>

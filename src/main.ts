@@ -1,5 +1,10 @@
 ﻿import { ConnectRequest, createDebugPanel } from "./debug";
-import { applyCommandEnvelope, buildPerspective, computeStateHash, createInitialState } from "./game";
+import {
+  applyCommandEnvelope,
+  buildPerspective,
+  createInitialState,
+  createUnlockSkillCommand,
+} from "./game";
 import {
   createInitialInputState,
   getHighlights,
@@ -10,16 +15,18 @@ import {
   onEndTurnClick as mapEndTurnClick,
   onSkillClick as mapSkillClick,
 } from "./input";
-import { Command, CommandEnvelope, DebugHashMessage, NetMessage, Side, keyToCoord } from "./protocol";
-import { ITransport, TransportStatus, createLoopbackTransport, createPeerJsTransport } from "./transport";
+import { Command, CommandEnvelope, NetMessage, Side, keyToCoord } from "./protocol";
+import {
+  ITransport,
+  PeerRuntimeConfig,
+  TransportStatus,
+  createLoopbackTransport,
+  createPeerJsTransport,
+} from "./transport";
 import { createGameView } from "./view";
 
 function isCommandEnvelope(message: NetMessage): message is CommandEnvelope {
   return message.kind === "command";
-}
-
-function isDebugHash(message: NetMessage): message is DebugHashMessage {
-  return message.kind === "debugHash";
 }
 
 function createPeerId(): string {
@@ -33,6 +40,27 @@ function buildInviteHash(peerId: string): string {
 function parseInviteHash(inviteHash: string): string | null {
   const code = inviteHash.trim();
   return code.length > 0 ? code : null;
+}
+
+const FALLBACK_ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+
+function readPeerRuntimeConfig(): PeerRuntimeConfig {
+  const raw = String(import.meta.env.VITE_ICE_SERVERS_JSON || "").trim();
+  if (!raw) {
+    return { iceServers: FALLBACK_ICE_SERVERS };
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return { iceServers: parsed as RTCIceServer[] };
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn("invalid VITE_ICE_SERVERS_JSON, fallback to default STUN", error);
+  }
+
+  return { iceServers: FALLBACK_ICE_SERVERS };
 }
 
 async function bootstrap(): Promise<void> {
@@ -51,38 +79,26 @@ async function bootstrap(): Promise<void> {
   let inputState = createInitialInputState();
   let transport: ITransport | null = null;
   let isConnected = false;
+  let ballisticPending = false;
   let pendingRemoteId: string | null = null;
   let transportSeq = 0;
   let sessionMode: "receiver" | "connector" | null = null;
+  const peerRuntimeConfig = readPeerRuntimeConfig();
 
   const render = (): void => {
-    const ctx = { game: state, localSide, connected: isConnected };
+    const ctx = { game: state, localSide, connected: isConnected, ballisticPending };
     view.render({
       state,
       perspective: buildPerspective(state, localSide),
       localSide,
       connected: isConnected,
+      ballisticPending,
       input: inputState,
       highlights: getHighlights(inputState, ctx),
       skillAvailability: getSkillAvailability(ctx),
       spiritSelector: getSpiritSelectorView(inputState, ctx),
     });
     debugPanel.updateDualView(state);
-  };
-
-  const broadcastHash = (): void => {
-    if (!debugEnabled) {
-      return;
-    }
-    const hash = computeStateHash(state);
-    debugPanel.recordLocalHash(state.seq, hash);
-    if (transport && isConnected) {
-      transport.send({
-        kind: "debugHash",
-        seq: state.seq,
-        hash,
-      });
-    }
   };
 
   const applyEnvelope = (envelope: CommandEnvelope, source: "local" | "remote"): boolean => {
@@ -95,6 +111,9 @@ async function bootstrap(): Promise<void> {
 
     state = outcome.state;
     inputState = createInitialInputState();
+    if (envelope.command.type === "endTurn") {
+      ballisticPending = false;
+    }
 
     if (envelope.command.type === "attack") {
       const target = keyToCoord(envelope.command.to);
@@ -103,8 +122,21 @@ async function bootstrap(): Promise<void> {
       }
     }
 
+    const projectiles = outcome.effects?.projectiles ?? [];
+    if (projectiles.length > 0) {
+      const lockLocalEndTurn = envelope.command.actor === localSide;
+      if (lockLocalEndTurn) {
+        ballisticPending = true;
+      }
+      void view.playProjectileAnimations(projectiles).then(() => {
+        if (lockLocalEndTurn) {
+          ballisticPending = false;
+          render();
+        }
+      });
+    }
+
     render();
-    broadcastHash();
     return true;
   };
 
@@ -152,6 +184,7 @@ async function bootstrap(): Promise<void> {
     if (status.type === "ready") {
       isConnected = false;
       inputState = createInitialInputState();
+      ballisticPending = false;
       if (sessionMode === "receiver" && transport) {
         const invite = buildInviteHash(transport.getLocalId());
         debugPanel.setInviteHash(invite);
@@ -168,12 +201,14 @@ async function bootstrap(): Promise<void> {
     if (status.type === "connecting") {
       isConnected = false;
       inputState = createInitialInputState();
+      ballisticPending = false;
       render();
       return;
     }
 
     isConnected = false;
     inputState = createInitialInputState();
+    ballisticPending = false;
     render();
   };
 
@@ -205,10 +240,6 @@ async function bootstrap(): Promise<void> {
         applyEnvelope(message, "remote");
         return;
       }
-      if (isDebugHash(message) && debugEnabled) {
-        debugPanel.log(`recv hash seq=${message.seq} hash=${message.hash}`);
-        debugPanel.recordRemoteHash(message.seq, message.hash);
-      }
     });
 
     transport.start();
@@ -216,7 +247,12 @@ async function bootstrap(): Promise<void> {
 
   view.setHandlers({
     onSkillClick(skill) {
-      const next = mapSkillClick(inputState, skill, { game: state, localSide, connected: isConnected });
+      const next = mapSkillClick(inputState, skill, {
+        game: state,
+        localSide,
+        connected: isConnected,
+        ballisticPending,
+      });
       inputState = next.next;
       if (next.command) {
         issueLocalCommand(next.command);
@@ -225,7 +261,12 @@ async function bootstrap(): Promise<void> {
       }
     },
     onCellClick(coord) {
-      const next = mapBoardClick(inputState, coord, { game: state, localSide, connected: isConnected });
+      const next = mapBoardClick(inputState, coord, {
+        game: state,
+        localSide,
+        connected: isConnected,
+        ballisticPending,
+      });
       inputState = next.next;
       if (next.command) {
         issueLocalCommand(next.command);
@@ -234,7 +275,12 @@ async function bootstrap(): Promise<void> {
       }
     },
     onEndTurnClick() {
-      const next = mapEndTurnClick(inputState, { game: state, localSide, connected: isConnected });
+      const next = mapEndTurnClick(inputState, {
+        game: state,
+        localSide,
+        connected: isConnected,
+        ballisticPending,
+      });
       inputState = next.next;
       if (next.command) {
         issueLocalCommand(next.command);
@@ -243,15 +289,24 @@ async function bootstrap(): Promise<void> {
       }
     },
     onSpiritAdjust(delta) {
-      const next = mapSpiritAdjust(inputState, delta, { game: state, localSide, connected: isConnected });
+      const next = mapSpiritAdjust(inputState, delta, {
+        game: state,
+        localSide,
+        connected: isConnected,
+        ballisticPending,
+      });
       inputState = next.next;
       render();
+    },
+    onUnlockSkill(skill) {
+      issueLocalCommand(createUnlockSkillCommand(localSide, skill));
     },
   });
 
   debugPanel.onSideChange((side) => {
     localSide = side;
     inputState = createInitialInputState();
+    ballisticPending = false;
     debugPanel.log(
       `\u672c\u673a\u63a7\u5236\u65b9: ${side === "blue" ? "P1/\u84dd\u65b9" : "P2/\u7ea2\u65b9"}`,
     );
@@ -261,11 +316,12 @@ async function bootstrap(): Promise<void> {
   debugPanel.onConnectAction((request: ConnectRequest) => {
     debugPanel.setInviteHash("");
     inputState = createInitialInputState();
+    ballisticPending = false;
 
     if (request.mode === "receiver") {
       sessionMode = "receiver";
       pendingRemoteId = null;
-      bindTransport(createPeerJsTransport(createPeerId()));
+      bindTransport(createPeerJsTransport(createPeerId(), peerRuntimeConfig));
       debugPanel.log("\u5df2\u542f\u52a8\u63a5\u6536\u6a21\u5f0f\uff0c\u7b49\u5f85\u751f\u6210\u8054\u673a\u7801");
       return;
     }
@@ -278,20 +334,20 @@ async function bootstrap(): Promise<void> {
 
     sessionMode = "connector";
     pendingRemoteId = remoteId;
-    bindTransport(createPeerJsTransport(createPeerId()));
+    bindTransport(createPeerJsTransport(createPeerId(), peerRuntimeConfig));
     debugPanel.log("\u5df2\u542f\u52a8\u8fde\u63a5\u6a21\u5f0f\uff0c\u6b63\u5728\u8fde\u63a5\u8fdc\u7aef");
   });
 
   debugPanel.onStartLoopback(() => {
     sessionMode = null;
     pendingRemoteId = null;
+    ballisticPending = false;
     const loopback = createLoopbackTransport();
     bindTransport(loopback);
     loopback.connect("self");
   });
 
   render();
-  broadcastHash();
 }
 
 bootstrap().catch((error) => {

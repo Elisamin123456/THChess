@@ -14,6 +14,7 @@ export type SkillId =
   | "role2"
   | "role3"
   | "role4";
+export type RoleSkillId = "role1" | "role2" | "role3" | "role4";
 
 export interface Coord {
   x: number;
@@ -30,11 +31,25 @@ export interface UnitStats {
   gold: number;
 }
 
+export interface SkillUnlockState {
+  role1: boolean;
+  role2: boolean;
+  role3: boolean;
+  role4: boolean;
+}
+
+export interface UnitEffects {
+  orbVisionRadius: number;
+  orbTurns: number;
+}
+
 export interface UnitState {
   id: PlayerId;
   side: Side;
   pos: Coord;
   stats: UnitStats;
+  skills: SkillUnlockState;
+  effects: UnitEffects;
 }
 
 export interface WallState {
@@ -102,7 +117,62 @@ export interface EndTurnCommand {
   actor: Side;
 }
 
-export type Command = MoveCommand | BuildCommand | ScoutCommand | AttackCommand | EndTurnCommand;
+export interface UnlockSkillCommand {
+  type: "unlockSkill";
+  actor: Side;
+  skill: RoleSkillId;
+}
+
+export interface NeedleCommand {
+  type: "needle";
+  actor: Side;
+  to: string;
+  spirit: number;
+}
+
+export interface AmuletCommand {
+  type: "amulet";
+  actor: Side;
+  to: string;
+  spirit: number;
+}
+
+export interface OrbCommand {
+  type: "orb";
+  actor: Side;
+  spirit: number;
+}
+
+export interface BlinkCommand {
+  type: "blink";
+  actor: Side;
+  to: string;
+  spirit: number;
+}
+
+export type Command =
+  | MoveCommand
+  | BuildCommand
+  | ScoutCommand
+  | AttackCommand
+  | EndTurnCommand
+  | UnlockSkillCommand
+  | NeedleCommand
+  | AmuletCommand
+  | OrbCommand
+  | BlinkCommand;
+
+export interface ProjectileEffect {
+  kind: "needle" | "amulet";
+  actor: Side;
+  origin: string;
+  path: string[];
+  delayMs: number;
+}
+
+export interface CommandEffects {
+  projectiles?: ProjectileEffect[];
+}
 
 export interface CommandEnvelope {
   kind: "command";
@@ -121,6 +191,7 @@ export type NetMessage = CommandEnvelope | DebugHashMessage;
 export interface ApplyResult {
   ok: true;
   state: GameState;
+  effects?: CommandEffects;
 }
 
 export interface ApplyError {
@@ -179,3 +250,6 @@ export function oppositeSide(side: Side): Side {
   return side === "blue" ? "red" : "blue";
 }
 
+export function isRoleSkillId(skill: SkillId): skill is RoleSkillId {
+  return skill === "role1" || skill === "role2" || skill === "role3" || skill === "role4";
+}

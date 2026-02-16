@@ -1,14 +1,17 @@
-import {
+﻿import {
   ApplyOutcome,
   BOARD_HEIGHT,
   BOARD_WIDTH,
   COL_LABELS,
   Command,
+  CommandEffects,
   CommandEnvelope,
   Coord,
   GameState,
   PerspectiveCell,
   PerspectiveState,
+  ProjectileEffect,
+  RoleSkillId,
   Side,
   TerrainType,
   UnitState,
@@ -26,6 +29,9 @@ import {
 
 const BLUE_SPAWN: Coord = { x: 1, y: 4 }; // B5
 const RED_SPAWN: Coord = { x: 10, y: 4 }; // K5
+const SKILL_UNLOCK_COST = 100;
+const NEEDLE_INTERVAL_MS = 140;
+const MAX_ANNOUNCEMENTS = 80;
 
 const INITIAL_WALL_COORDS: Coord[] = [];
 for (let y = 3; y <= 8; y += 1) {
@@ -78,6 +84,16 @@ function createUnit(side: Side, pos: Coord, initialSpirit: number): UnitState {
       moveRange: 1,
       gold: 100,
     },
+    skills: {
+      role1: false,
+      role2: false,
+      role3: false,
+      role4: false,
+    },
+    effects: {
+      orbVisionRadius: 0,
+      orbTurns: 0,
+    },
   };
 }
 
@@ -91,6 +107,31 @@ function createWalls(): Record<string, WallState> {
     };
   }
   return walls;
+}
+
+function cloneUnit(unit: UnitState): UnitState {
+  return {
+    ...unit,
+    pos: { ...unit.pos },
+    stats: { ...unit.stats },
+    skills: { ...unit.skills },
+    effects: { ...unit.effects },
+  };
+}
+
+function clonePlayers(players: Record<Side, UnitState>): Record<Side, UnitState> {
+  return {
+    blue: cloneUnit(players.blue),
+    red: cloneUnit(players.red),
+  };
+}
+
+function cloneWalls(walls: Record<string, WallState>): Record<string, WallState> {
+  const next: Record<string, WallState> = {};
+  for (const key of Object.keys(walls)) {
+    next[key] = { ...walls[key] };
+  }
+  return next;
 }
 
 export function createInitialState(): GameState {
@@ -144,6 +185,49 @@ export function createAttackCommand(actor: Side, to: Coord): Command {
   };
 }
 
+export function createNeedleCommand(actor: Side, to: Coord, spirit: number): Command {
+  return {
+    type: "needle",
+    actor,
+    to: coordToKey(to),
+    spirit,
+  };
+}
+
+export function createAmuletCommand(actor: Side, to: Coord): Command {
+  return {
+    type: "amulet",
+    actor,
+    to: coordToKey(to),
+    spirit: 1,
+  };
+}
+
+export function createOrbCommand(actor: Side, spirit: number): Command {
+  return {
+    type: "orb",
+    actor,
+    spirit,
+  };
+}
+
+export function createBlinkCommand(actor: Side, to: Coord, spirit: number): Command {
+  return {
+    type: "blink",
+    actor,
+    to: coordToKey(to),
+    spirit,
+  };
+}
+
+export function createUnlockSkillCommand(actor: Side, skill: RoleSkillId): Command {
+  return {
+    type: "unlockSkill",
+    actor,
+    skill,
+  };
+}
+
 export function createEndTurnCommand(actor: Side): Command {
   return {
     type: "endTurn",
@@ -160,7 +244,7 @@ function canIssueAction(state: GameState, actor: Side): boolean {
 }
 
 export function canEndTurn(state: GameState, actor: Side): boolean {
-  return canIssueCommandByTurn(state, actor) && state.turn.acted;
+  return canIssueCommandByTurn(state, actor);
 }
 
 function containsCoord(list: Coord[], target: Coord): boolean {
@@ -169,6 +253,10 @@ function containsCoord(list: Coord[], target: Coord): boolean {
 
 function isWallAliveAt(state: GameState, coord: Coord): boolean {
   return Boolean(state.walls[coordToKey(coord)]?.alive);
+}
+
+function isWallAliveInMap(walls: Record<string, WallState>, coord: Coord): boolean {
+  return Boolean(walls[coordToKey(coord)]?.alive);
 }
 
 function hasAnyUnitAt(state: GameState, coord: Coord): boolean {
@@ -185,6 +273,161 @@ function isAttackTargetAt(state: GameState, actor: Side, coord: Coord): boolean 
   }
   const enemy = state.players[oppositeSide(actor)];
   return coordsEqual(enemy.pos, coord);
+}
+
+function floorDamage(value: number): number {
+  return Math.max(0, Math.floor(value));
+}
+
+function getWinnerFromPlayers(state: GameState): Side | null {
+  if (state.players.blue.stats.hp <= 0) {
+    return "red";
+  }
+  if (state.players.red.stats.hp <= 0) {
+    return "blue";
+  }
+  return null;
+}
+
+function getVisionRadius(state: GameState, side: Side): number {
+  const unit = state.players[side];
+  if (unit.effects.orbTurns > 0) {
+    return Math.max(unit.stats.vision, unit.effects.orbVisionRadius);
+  }
+  return unit.stats.vision;
+}
+
+function buildRayPath(from: Coord, to: Coord): Coord[] {
+  const startX = from.x + 0.5;
+  const startY = from.y + 0.5;
+  const targetX = to.x + 0.5;
+  const targetY = to.y + 0.5;
+  const dirX = targetX - startX;
+  const dirY = targetY - startY;
+  if (dirX === 0 && dirY === 0) {
+    return [];
+  }
+
+  let x = from.x;
+  let y = from.y;
+  const stepX = dirX > 0 ? 1 : dirX < 0 ? -1 : 0;
+  const stepY = dirY > 0 ? 1 : dirY < 0 ? -1 : 0;
+
+  const tDeltaX = dirX === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / dirX);
+  const tDeltaY = dirY === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / dirY);
+
+  const nextBoundaryX = stepX > 0 ? x + 1 : x;
+  const nextBoundaryY = stepY > 0 ? y + 1 : y;
+  let tMaxX =
+    dirX === 0 ? Number.POSITIVE_INFINITY : Math.abs((nextBoundaryX - startX) / dirX);
+  let tMaxY =
+    dirY === 0 ? Number.POSITIVE_INFINITY : Math.abs((nextBoundaryY - startY) / dirY);
+
+  const path: Coord[] = [];
+  while (true) {
+    if (tMaxX < tMaxY) {
+      x += stepX;
+      tMaxX += tDeltaX;
+    } else if (tMaxY < tMaxX) {
+      y += stepY;
+      tMaxY += tDeltaY;
+    } else {
+      x += stepX;
+      y += stepY;
+      tMaxX += tDeltaX;
+      tMaxY += tDeltaY;
+    }
+
+    const cell: Coord = { x, y };
+    if (!isCoordInBounds(cell)) {
+      break;
+    }
+    path.push(cell);
+  }
+
+  return path;
+}
+
+function applyEnemyDamage(
+  players: Record<Side, UnitState>,
+  targetSide: Side,
+  amount: number,
+  damageAnnouncements: string[],
+): boolean {
+  if (amount <= 0) {
+    return false;
+  }
+  const target = players[targetSide];
+  if (target.stats.hp <= 0) {
+    return false;
+  }
+  const hpAfter = Math.max(0, target.stats.hp - amount);
+  target.stats.hp = hpAfter;
+  damageAnnouncements.push(`${getSideLabel(targetSide)}\u53d7\u5230\u4e86${amount}\u70b9\u4f24\u5bb3`);
+  return true;
+}
+
+function applyWallDamage(
+  players: Record<Side, UnitState>,
+  walls: Record<string, WallState>,
+  actor: Side,
+  coord: Coord,
+  amount: number,
+): boolean {
+  if (amount <= 0) {
+    return false;
+  }
+  const key = coordToKey(coord);
+  const wall = walls[key];
+  if (!wall || !wall.alive) {
+    return false;
+  }
+  const hpAfter = wall.hp - amount;
+  if (hpAfter <= 0) {
+    const reward = 4 * wall.maxHp;
+    players[actor].stats.gold += reward;
+    walls[key] = {
+      ...wall,
+      hp: 0,
+      alive: false,
+    };
+  } else {
+    walls[key] = {
+      ...wall,
+      hp: hpAfter,
+    };
+  }
+  return true;
+}
+
+function buildProjectileEffect(
+  kind: "needle" | "amulet",
+  actor: Side,
+  origin: Coord,
+  path: Coord[],
+  delayMs: number,
+): ProjectileEffect {
+  return {
+    kind,
+    actor,
+    origin: coordToKey(origin),
+    path: path.map((cell) => coordToKey(cell)),
+    delayMs,
+  };
+}
+
+function appendAnnouncements(base: string[], additions: string[]): string[] {
+  if (additions.length === 0) {
+    if (base.length <= MAX_ANNOUNCEMENTS) {
+      return base;
+    }
+    return base.slice(base.length - MAX_ANNOUNCEMENTS);
+  }
+  const merged = [...base, ...additions];
+  if (merged.length <= MAX_ANNOUNCEMENTS) {
+    return merged;
+  }
+  return merged.slice(merged.length - MAX_ANNOUNCEMENTS);
 }
 
 export function getLegalMoveTargets(state: GameState, actor: Side): Coord[] {
@@ -282,6 +525,38 @@ export function getLegalAttackTargets(state: GameState, actor: Side): Coord[] {
   return result;
 }
 
+export function getLegalBlinkTargets(state: GameState, actor: Side, spiritSpend: number): Coord[] {
+  if (!canIssueAction(state, actor)) {
+    return [];
+  }
+  if (!Number.isInteger(spiritSpend) || spiritSpend <= 0) {
+    return [];
+  }
+  if (state.players[actor].stats.spirit < spiritSpend) {
+    return [];
+  }
+  if (!state.players[actor].skills.role4) {
+    return [];
+  }
+
+  const self = state.players[actor];
+  const result: Coord[] = [];
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const target: Coord = { x, y };
+      const distance = chebyshevDistance(self.pos, target);
+      if (distance <= 0 || distance > spiritSpend) {
+        continue;
+      }
+      if (hasAnyUnitAt(state, target)) {
+        continue;
+      }
+      result.push(target);
+    }
+  }
+  return result;
+}
+
 export function getQuickCastTargets(state: GameState, actor: Side): QuickCastTargets {
   const moveTargets = getLegalMoveTargets(state, actor);
   const attackTargets = getLegalAttackTargets(state, actor).filter(
@@ -291,20 +566,6 @@ export function getQuickCastTargets(state: GameState, actor: Side): QuickCastTar
     moveTargets,
     attackTargets,
   };
-}
-
-function floorDamage(value: number): number {
-  return Math.max(0, Math.floor(value));
-}
-
-function getWinnerFromPlayers(state: GameState): Side | null {
-  if (state.players.blue.stats.hp <= 0) {
-    return "red";
-  }
-  if (state.players.red.stats.hp <= 0) {
-    return "blue";
-  }
-  return null;
 }
 
 function applyMove(state: GameState, command: Command): ApplyOutcome {
@@ -330,19 +591,13 @@ function applyMove(state: GameState, command: Command): ApplyOutcome {
     ? Math.min(self.stats.maxSpirit, self.stats.spirit + 1)
     : self.stats.spirit;
 
+  const nextPlayers = clonePlayers(state.players);
+  nextPlayers[actor].pos = { ...target };
+  nextPlayers[actor].stats.spirit = nextSpirit;
+
   const nextState: GameState = {
     ...state,
-    players: {
-      ...state.players,
-      [actor]: {
-        ...self,
-        pos: { ...target },
-        stats: {
-          ...self.stats,
-          spirit: nextSpirit,
-        },
-      },
-    },
+    players: nextPlayers,
     turn: {
       ...state.turn,
       acted: true,
@@ -376,28 +631,21 @@ function applyBuild(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "illegal build target" };
   }
 
-  const self = state.players[actor];
+  const nextPlayers = clonePlayers(state.players);
+  nextPlayers[actor].stats.spirit -= command.spirit;
+
   const wallKey = coordToKey(target);
+  const nextWalls = cloneWalls(state.walls);
+  nextWalls[wallKey] = {
+    hp: command.spirit,
+    maxHp: command.spirit,
+    alive: true,
+  };
+
   const nextState: GameState = {
     ...state,
-    players: {
-      ...state.players,
-      [actor]: {
-        ...self,
-        stats: {
-          ...self.stats,
-          spirit: self.stats.spirit - command.spirit,
-        },
-      },
-    },
-    walls: {
-      ...state.walls,
-      [wallKey]: {
-        hp: command.spirit,
-        maxHp: command.spirit,
-        alive: true,
-      },
-    },
+    players: nextPlayers,
+    walls: nextWalls,
     turn: {
       ...state.turn,
       acted: true,
@@ -425,18 +673,12 @@ function applyScout(state: GameState, command: Command): ApplyOutcome {
     ? "\u65e0\u6cd5\u88ab\u4fa6\u5bdf"
     : `\u5750\u6807\u4e3a(${enemy.pos.x + 1},${enemy.pos.y + 1})`;
 
+  const nextPlayers = clonePlayers(state.players);
+  nextPlayers[actor].stats.spirit -= 1;
+
   const nextState: GameState = {
     ...state,
-    players: {
-      ...state.players,
-      [actor]: {
-        ...self,
-        stats: {
-          ...self.stats,
-          spirit: self.stats.spirit - 1,
-        },
-      },
-    },
+    players: nextPlayers,
     turn: {
       ...state.turn,
       acted: true,
@@ -469,50 +711,14 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
 
   const damage = floorDamage(self.stats.atk);
   const enemySide = oppositeSide(actor);
-  const enemy = state.players[enemySide];
-  const nextPlayers: Record<Side, UnitState> = {
-    ...state.players,
-    [actor]: {
-      ...self,
-      stats: { ...self.stats },
-    },
-    [enemySide]: {
-      ...enemy,
-      stats: { ...enemy.stats },
-    },
-  };
-  const nextWalls: Record<string, WallState> = { ...state.walls };
+  const nextPlayers = clonePlayers(state.players);
+  const nextWalls = cloneWalls(state.walls);
   const damageAnnouncements: string[] = [];
 
-  if (coordsEqual(enemy.pos, target) && damage > 0) {
-    const hpAfter = Math.max(0, enemy.stats.hp - damage);
-    nextPlayers[enemySide].stats.hp = hpAfter;
-    damageAnnouncements.push(`${getSideLabel(enemySide)}\u53d7\u5230\u4e86${damage}\u70b9\u4f24\u5bb3`);
+  if (coordsEqual(nextPlayers[enemySide].pos, target)) {
+    applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements);
   }
-
-  let wallReward = 0;
-  const wallKey = coordToKey(target);
-  const wall = nextWalls[wallKey];
-  if (wall?.alive && damage > 0) {
-    const hpAfter = wall.hp - damage;
-    if (hpAfter <= 0) {
-      wallReward = 4 * wall.maxHp;
-      nextWalls[wallKey] = {
-        ...wall,
-        hp: 0,
-        alive: false,
-      };
-    } else {
-      nextWalls[wallKey] = {
-        ...wall,
-        hp: hpAfter,
-      };
-    }
-  }
-
-  if (wallReward > 0) {
-    nextPlayers[actor].stats.gold += wallReward;
-  }
+  applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
 
   const winner = getWinnerFromPlayers({
     ...state,
@@ -524,10 +730,7 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
-    announcements:
-      damageAnnouncements.length > 0
-        ? [...state.announcements, ...damageAnnouncements]
-        : [...state.announcements],
+    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
     turn: {
       ...state.turn,
       acted: true,
@@ -536,6 +739,298 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
     winner,
   };
   return { ok: true, state: nextState };
+}
+
+function applyUnlockSkill(state: GameState, command: Command): ApplyOutcome {
+  if (command.type !== "unlockSkill") {
+    return { ok: false, reason: "invalid unlock command type" };
+  }
+  const actor = command.actor;
+  if (!canIssueCommandByTurn(state, actor)) {
+    return { ok: false, reason: "cannot unlock now" };
+  }
+
+  const self = state.players[actor];
+  if (self.skills[command.skill]) {
+    return { ok: false, reason: "skill already unlocked" };
+  }
+  if (self.stats.gold < SKILL_UNLOCK_COST) {
+    return { ok: false, reason: "not enough gold" };
+  }
+
+  const nextPlayers = clonePlayers(state.players);
+  nextPlayers[actor].stats.gold -= SKILL_UNLOCK_COST;
+  nextPlayers[actor].skills[command.skill] = true;
+
+  return {
+    ok: true,
+    state: {
+      ...state,
+      players: nextPlayers,
+    },
+  };
+}
+
+function applyNeedle(state: GameState, command: Command): ApplyOutcome {
+  if (command.type !== "needle") {
+    return { ok: false, reason: "invalid needle command type" };
+  }
+  const actor = command.actor;
+  if (!canIssueAction(state, actor)) {
+    return { ok: false, reason: "cannot act now" };
+  }
+
+  const self = state.players[actor];
+  if (!self.skills.role1) {
+    return { ok: false, reason: "skill role1 not unlocked" };
+  }
+  if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
+    return { ok: false, reason: "invalid spirit spend" };
+  }
+  if (self.stats.spirit < command.spirit) {
+    return { ok: false, reason: "not enough spirit" };
+  }
+
+  const target = keyToCoord(command.to);
+  if (!target) {
+    return { ok: false, reason: "invalid target coordinate" };
+  }
+  const ray = buildRayPath(self.pos, target);
+  if (ray.length === 0) {
+    return { ok: false, reason: "invalid needle direction" };
+  }
+
+  const enemySide = oppositeSide(actor);
+  const nextPlayers = clonePlayers(state.players);
+  const nextWalls = cloneWalls(state.walls);
+  const damageAnnouncements: string[] = [];
+  const projectiles: ProjectileEffect[] = [];
+
+  for (let index = 0; index < command.spirit; index += 1) {
+    const traveled: Coord[] = [];
+    for (const cell of ray) {
+      traveled.push(cell);
+      if (isWallAliveInMap(nextWalls, cell)) {
+        applyWallDamage(nextPlayers, nextWalls, actor, cell, 1);
+        break;
+      }
+      if (coordsEqual(nextPlayers[enemySide].pos, cell)) {
+        applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements);
+        break;
+      }
+    }
+    projectiles.push(
+      buildProjectileEffect("needle", actor, nextPlayers[actor].pos, traveled, index * NEEDLE_INTERVAL_MS),
+    );
+  }
+
+  nextPlayers[actor].stats.spirit -= command.spirit;
+
+  const winner = getWinnerFromPlayers({
+    ...state,
+    players: nextPlayers,
+    walls: nextWalls,
+  });
+
+  const nextState: GameState = {
+    ...state,
+    players: nextPlayers,
+    walls: nextWalls,
+    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
+    turn: {
+      ...state.turn,
+      acted: true,
+      pendingAnnouncement: `${getSideLabel(actor)}\u53d1\u5c04\u4e86\u5c01\u9b54\u9488`,
+    },
+    winner,
+  };
+
+  const effects: CommandEffects = {
+    projectiles,
+  };
+
+  return {
+    ok: true,
+    state: nextState,
+    effects,
+  };
+}
+
+function applyAmulet(state: GameState, command: Command): ApplyOutcome {
+  if (command.type !== "amulet") {
+    return { ok: false, reason: "invalid amulet command type" };
+  }
+  const actor = command.actor;
+  if (!canIssueAction(state, actor)) {
+    return { ok: false, reason: "cannot act now" };
+  }
+
+  const self = state.players[actor];
+  if (!self.skills.role2) {
+    return { ok: false, reason: "skill role2 not unlocked" };
+  }
+  if (!Number.isInteger(command.spirit) || command.spirit !== 1) {
+    return { ok: false, reason: "amulet spirit must be 1" };
+  }
+  if (self.stats.spirit < 1) {
+    return { ok: false, reason: "not enough spirit" };
+  }
+
+  const target = keyToCoord(command.to);
+  if (!target) {
+    return { ok: false, reason: "invalid target coordinate" };
+  }
+  const ray = buildRayPath(self.pos, target);
+  if (ray.length === 0) {
+    return { ok: false, reason: "invalid amulet direction" };
+  }
+
+  const enemySide = oppositeSide(actor);
+  const nextPlayers = clonePlayers(state.players);
+  const nextWalls = cloneWalls(state.walls);
+  const damageAnnouncements: string[] = [];
+  const traveled: Coord[] = [];
+  let hitEnemy = false;
+
+  for (const cell of ray) {
+    traveled.push(cell);
+    if (isWallAliveInMap(nextWalls, cell)) {
+      applyWallDamage(nextPlayers, nextWalls, actor, cell, 1);
+    }
+    if (coordsEqual(nextPlayers[enemySide].pos, cell)) {
+      hitEnemy = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || hitEnemy;
+    }
+  }
+
+  const spiritAfter = nextPlayers[actor].stats.spirit - 1 + (hitEnemy ? 1 : 0);
+  nextPlayers[actor].stats.spirit = Math.max(
+    0,
+    Math.min(nextPlayers[actor].stats.maxSpirit, spiritAfter),
+  );
+
+  const winner = getWinnerFromPlayers({
+    ...state,
+    players: nextPlayers,
+    walls: nextWalls,
+  });
+
+  const nextState: GameState = {
+    ...state,
+    players: nextPlayers,
+    walls: nextWalls,
+    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
+    turn: {
+      ...state.turn,
+      acted: true,
+      pendingAnnouncement: `${getSideLabel(actor)}\u53d1\u5c04\u4e86\u7b26\u672d`,
+    },
+    winner,
+  };
+
+  return {
+    ok: true,
+    state: nextState,
+    effects: {
+      projectiles: [buildProjectileEffect("amulet", actor, nextPlayers[actor].pos, traveled, 0)],
+    },
+  };
+}
+
+function applyOrb(state: GameState, command: Command): ApplyOutcome {
+  if (command.type !== "orb") {
+    return { ok: false, reason: "invalid orb command type" };
+  }
+  const actor = command.actor;
+  if (!canIssueAction(state, actor)) {
+    return { ok: false, reason: "cannot act now" };
+  }
+
+  const self = state.players[actor];
+  if (!self.skills.role3) {
+    return { ok: false, reason: "skill role3 not unlocked" };
+  }
+  if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
+    return { ok: false, reason: "invalid spirit spend" };
+  }
+  if (self.stats.spirit < command.spirit) {
+    return { ok: false, reason: "not enough spirit" };
+  }
+
+  const nextPlayers = clonePlayers(state.players);
+  nextPlayers[actor].stats.spirit -= command.spirit;
+  nextPlayers[actor].effects.orbVisionRadius = command.spirit;
+  nextPlayers[actor].effects.orbTurns = command.spirit;
+
+  return {
+    ok: true,
+    state: {
+      ...state,
+      players: nextPlayers,
+      turn: {
+        ...state.turn,
+        acted: true,
+        pendingAnnouncement: `${getSideLabel(actor)}\u83b7\u5f97\u4e86\u534a\u5f84\u4e3a${command.spirit}\u7684\u89c6\u91ce`,
+      },
+    },
+  };
+}
+
+function applyBlink(state: GameState, command: Command): ApplyOutcome {
+  if (command.type !== "blink") {
+    return { ok: false, reason: "invalid blink command type" };
+  }
+  const actor = command.actor;
+  if (!canIssueAction(state, actor)) {
+    return { ok: false, reason: "cannot act now" };
+  }
+
+  const self = state.players[actor];
+  if (!self.skills.role4) {
+    return { ok: false, reason: "skill role4 not unlocked" };
+  }
+  if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
+    return { ok: false, reason: "invalid spirit spend" };
+  }
+  if (self.stats.spirit < command.spirit) {
+    return { ok: false, reason: "not enough spirit" };
+  }
+
+  const target = keyToCoord(command.to);
+  if (!target) {
+    return { ok: false, reason: "invalid target coordinate" };
+  }
+  const legal = containsCoord(getLegalBlinkTargets(state, actor, command.spirit), target);
+  if (!legal) {
+    return { ok: false, reason: "illegal blink target" };
+  }
+
+  const nextPlayers = clonePlayers(state.players);
+  nextPlayers[actor].stats.spirit -= command.spirit;
+  nextPlayers[actor].pos = { ...target };
+
+  return {
+    ok: true,
+    state: {
+      ...state,
+      players: nextPlayers,
+      turn: {
+        ...state.turn,
+        acted: true,
+        pendingAnnouncement: `${getSideLabel(actor)}\u95ea\u73b0\u5230\u4e86\u534a\u5f84\u4e3a${command.spirit}\u5185\u7684\u4e00\u683c`,
+      },
+    },
+  };
+}
+
+function decrementOrbWhenTurnStarts(players: Record<Side, UnitState>, enteringSide: Side): void {
+  const effect = players[enteringSide].effects;
+  if (effect.orbTurns <= 0) {
+    return;
+  }
+  effect.orbTurns = Math.max(0, effect.orbTurns - 1);
+  if (effect.orbTurns === 0) {
+    effect.orbVisionRadius = 0;
+  }
 }
 
 function applyEndTurn(state: GameState, command: Command): ApplyOutcome {
@@ -552,11 +1047,18 @@ function applyEndTurn(state: GameState, command: Command): ApplyOutcome {
 
   const nextSide = oppositeSide(actor);
   const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
-  const announcement = state.turn.pendingAnnouncement;
+  const announcement =
+    state.turn.pendingAnnouncement ?? (!state.turn.acted ? `${getSideLabel(actor)}\u9009\u62e9\u4e86\u7a7a\u8fc7` : null);
+
+  const nextPlayers = clonePlayers(state.players);
+  decrementOrbWhenTurnStarts(nextPlayers, nextSide);
 
   const nextState: GameState = {
     ...state,
-    announcements: announcement ? [...state.announcements, announcement] : [...state.announcements],
+    players: nextPlayers,
+    announcements: announcement
+      ? appendAnnouncements(state.announcements, [announcement])
+      : appendAnnouncements(state.announcements, []),
     turn: {
       side: nextSide,
       round: nextRound,
@@ -580,6 +1082,16 @@ function applyCommand(state: GameState, command: Command): ApplyOutcome {
       return applyScout(state, command);
     case "attack":
       return applyAttack(state, command);
+    case "needle":
+      return applyNeedle(state, command);
+    case "amulet":
+      return applyAmulet(state, command);
+    case "orb":
+      return applyOrb(state, command);
+    case "blink":
+      return applyBlink(state, command);
+    case "unlockSkill":
+      return applyUnlockSkill(state, command);
     case "endTurn":
       return applyEndTurn(state, command);
     default:
@@ -605,12 +1117,13 @@ export function applyCommandEnvelope(state: GameState, envelope: CommandEnvelope
       ...applied.state,
       seq: envelope.seq,
     },
+    effects: applied.effects,
   };
 }
 
 function isVisibleFrom(state: GameState, observerSide: Side, coord: Coord): boolean {
   const self = state.players[observerSide];
-  if (chebyshevDistance(self.pos, coord) > self.stats.vision) {
+  if (chebyshevDistance(self.pos, coord) > getVisionRadius(state, observerSide)) {
     return false;
   }
   const observerInGrass = isGrass(self.pos);
@@ -698,4 +1211,3 @@ export function formatCoordXY(coord: Coord): string {
 export function formatCoordAlphaNumeric(coord: Coord): string {
   return `${COL_LABELS[coord.x]}${coord.y + 1}`;
 }
-

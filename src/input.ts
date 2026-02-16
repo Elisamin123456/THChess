@@ -1,28 +1,34 @@
-import {
+﻿import {
   canEndTurn,
   canUseScout,
+  createAmuletCommand,
   createAttackCommand,
+  createBlinkCommand,
   createBuildCommand,
   createEndTurnCommand,
   createMoveCommand,
+  createNeedleCommand,
+  createOrbCommand,
   createScoutCommand,
   getLegalAttackTargets,
+  getLegalBlinkTargets,
   getLegalBuildTargets,
   getLegalMoveTargets,
   getQuickCastTargets,
 } from "./game";
-import { Command, Coord, GameState, Side, SkillId, coordsEqual } from "./protocol";
+import { Command, Coord, GameState, Side, SkillId, coordsEqual, isRoleSkillId } from "./protocol";
 
 export interface InputState {
   activeSkill: SkillId | null;
   quickCast: boolean;
-  buildSpiritSpend: number;
+  spiritSpend: number;
 }
 
 export interface InputContext {
   game: GameState;
   localSide: Side;
   connected: boolean;
+  ballisticPending: boolean;
 }
 
 export interface InputResult {
@@ -42,33 +48,30 @@ export interface SpiritSelectorView {
   max: number;
 }
 
-export interface SkillAvailability {
-  move: boolean;
-  build: boolean;
-  scout: boolean;
-  attack: boolean;
-}
+export type SkillAvailability = Record<SkillId, boolean>;
 
 function containsCoord(list: Coord[], target: Coord): boolean {
   return list.some((item) => coordsEqual(item, target));
 }
 
 function canAct(ctx: InputContext): boolean {
-  return (
-    ctx.connected &&
-    !ctx.game.winner &&
-    ctx.game.turn.side === ctx.localSide &&
-    !ctx.game.turn.acted
-  );
+  return ctx.connected && !ctx.game.winner && ctx.game.turn.side === ctx.localSide && !ctx.game.turn.acted;
 }
 
-function getBuildSpendBounds(ctx: InputContext): { min: number; max: number } {
-  const max = Math.max(0, Math.floor(ctx.game.players[ctx.localSide].stats.spirit));
+function localUnit(ctx: InputContext) {
+  return ctx.game.players[ctx.localSide];
+}
+
+function getSpiritSpendBounds(skill: SkillId | null, ctx: InputContext): { min: number; max: number } {
+  if (skill !== "build" && skill !== "role1" && skill !== "role3" && skill !== "role4") {
+    return { min: 0, max: 0 };
+  }
+  const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
   return { min: max > 0 ? 1 : 0, max };
 }
 
 function hasAnyBuildTarget(ctx: InputContext): boolean {
-  const bounds = getBuildSpendBounds(ctx);
+  const bounds = getSpiritSpendBounds("build", ctx);
   if (bounds.max < 1) {
     return false;
   }
@@ -80,28 +83,57 @@ function hasAnyBuildTarget(ctx: InputContext): boolean {
   return false;
 }
 
+function hasAnyBlinkTarget(ctx: InputContext): boolean {
+  const bounds = getSpiritSpendBounds("role4", ctx);
+  if (bounds.max < 1) {
+    return false;
+  }
+  for (let spend = bounds.min; spend <= bounds.max; spend += 1) {
+    if (getLegalBlinkTargets(ctx.game, ctx.localSide, spend).length > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isVariableSpiritSkill(skill: SkillId | null): boolean {
+  return skill === "build" || skill === "role1" || skill === "role3" || skill === "role4";
+}
+
 export function createInitialInputState(): InputState {
   return {
     activeSkill: null,
     quickCast: false,
-    buildSpiritSpend: 1,
+    spiritSpend: 1,
   };
 }
 
 export function getSkillAvailability(ctx: InputContext): SkillAvailability {
+  const self = localUnit(ctx);
+  const noAction: SkillAvailability = {
+    move: false,
+    build: false,
+    scout: false,
+    attack: false,
+    role1: false,
+    role2: false,
+    role3: false,
+    role4: false,
+  };
+
   if (!canAct(ctx)) {
-    return {
-      move: false,
-      build: false,
-      scout: false,
-      attack: false,
-    };
+    return noAction;
   }
+
   return {
     move: getLegalMoveTargets(ctx.game, ctx.localSide).length > 0,
     build: hasAnyBuildTarget(ctx),
     scout: canUseScout(ctx.game, ctx.localSide),
     attack: getLegalAttackTargets(ctx.game, ctx.localSide).length > 0,
+    role1: self.skills.role1 && self.stats.spirit >= 1,
+    role2: self.skills.role2 && self.stats.spirit >= 1,
+    role3: self.skills.role3 && self.stats.spirit >= 1,
+    role4: self.skills.role4 && hasAnyBlinkTarget(ctx),
   };
 }
 
@@ -121,51 +153,44 @@ export function onSkillClick(state: InputState, skill: SkillId, ctx: InputContex
   }
 
   const availability = getSkillAvailability(ctx);
-  if (skill === "move" && !availability.move) {
-    return { next: { ...nextState, activeSkill: null } };
-  }
-  if (skill === "build" && !availability.build) {
-    return { next: { ...nextState, activeSkill: null } };
-  }
-  if (skill === "scout" && !availability.scout) {
-    return { next: { ...nextState, activeSkill: null } };
-  }
-  if (skill === "attack" && !availability.attack) {
-    return { next: { ...nextState, activeSkill: null } };
-  }
-  if (skill !== "move" && skill !== "build" && skill !== "scout" && skill !== "attack") {
+  if (!availability[skill]) {
     return { next: { ...nextState, activeSkill: null } };
   }
 
-  const bounds = getBuildSpendBounds(ctx);
-  const clampedSpend = Math.max(bounds.min || 1, Math.min(bounds.max || 1, nextState.buildSpiritSpend));
+  if (isRoleSkillId(skill) && !localUnit(ctx).skills[skill]) {
+    return { next: { ...nextState, activeSkill: null } };
+  }
+
+  const bounds = getSpiritSpendBounds(skill, ctx);
+  const clampedSpend = bounds.max > 0 ? Math.max(bounds.min, Math.min(bounds.max, nextState.spiritSpend)) : 1;
+
   return {
     next: {
       ...nextState,
       activeSkill: skill,
-      buildSpiritSpend: clampedSpend,
+      spiritSpend: clampedSpend,
     },
   };
 }
 
 export function onAdjustSpiritSpend(state: InputState, delta: number, ctx: InputContext): InputResult {
-  if (state.activeSkill !== "build") {
+  if (!isVariableSpiritSkill(state.activeSkill)) {
     return { next: { ...state } };
   }
-  const bounds = getBuildSpendBounds(ctx);
+  const bounds = getSpiritSpendBounds(state.activeSkill, ctx);
   if (bounds.max < 1) {
     return {
       next: {
         ...state,
-        buildSpiritSpend: 1,
+        spiritSpend: 1,
       },
     };
   }
-  const nextSpend = Math.max(bounds.min, Math.min(bounds.max, state.buildSpiritSpend + delta));
+  const nextSpend = Math.max(bounds.min, Math.min(bounds.max, state.spiritSpend + delta));
   return {
     next: {
       ...state,
-      buildSpiritSpend: nextSpend,
+      spiritSpend: nextSpend,
     },
   };
 }
@@ -183,7 +208,7 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
 
   if (state.quickCast) {
     const quick = getQuickCastTargets(ctx.game, ctx.localSide);
-    const selfPos = ctx.game.players[ctx.localSide].pos;
+    const selfPos = localUnit(ctx).pos;
     if (coordsEqual(coord, selfPos)) {
       return {
         next: {
@@ -230,7 +255,7 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
   }
 
   if (state.activeSkill === "build") {
-    const legal = getLegalBuildTargets(ctx.game, ctx.localSide, state.buildSpiritSpend);
+    const legal = getLegalBuildTargets(ctx.game, ctx.localSide, state.spiritSpend);
     if (!containsCoord(legal, coord)) {
       return { next: { ...state } };
     }
@@ -239,7 +264,7 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
         ...state,
         activeSkill: null,
       },
-      command: createBuildCommand(ctx.localSide, coord, state.buildSpiritSpend),
+      command: createBuildCommand(ctx.localSide, coord, state.spiritSpend),
     };
   }
 
@@ -270,7 +295,59 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
     };
   }
 
-  const selfPos = ctx.game.players[ctx.localSide].pos;
+  if (state.activeSkill === "role1") {
+    const selfPos = localUnit(ctx).pos;
+    if (coordsEqual(selfPos, coord)) {
+      return { next: { ...state } };
+    }
+    return {
+      next: {
+        ...state,
+        activeSkill: null,
+      },
+      command: createNeedleCommand(ctx.localSide, coord, state.spiritSpend),
+    };
+  }
+
+  if (state.activeSkill === "role2") {
+    const selfPos = localUnit(ctx).pos;
+    if (coordsEqual(selfPos, coord)) {
+      return { next: { ...state } };
+    }
+    return {
+      next: {
+        ...state,
+        activeSkill: null,
+      },
+      command: createAmuletCommand(ctx.localSide, coord),
+    };
+  }
+
+  if (state.activeSkill === "role3") {
+    return {
+      next: {
+        ...state,
+        activeSkill: null,
+      },
+      command: createOrbCommand(ctx.localSide, state.spiritSpend),
+    };
+  }
+
+  if (state.activeSkill === "role4") {
+    const legal = getLegalBlinkTargets(ctx.game, ctx.localSide, state.spiritSpend);
+    if (!containsCoord(legal, coord)) {
+      return { next: { ...state } };
+    }
+    return {
+      next: {
+        ...state,
+        activeSkill: null,
+      },
+      command: createBlinkCommand(ctx.localSide, coord, state.spiritSpend),
+    };
+  }
+
+  const selfPos = localUnit(ctx).pos;
   if (coordsEqual(coord, selfPos) && canAct(ctx)) {
     const quick = getQuickCastTargets(ctx.game, ctx.localSide);
     if (quick.moveTargets.length > 0 || quick.attackTargets.length > 0) {
@@ -288,7 +365,7 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
 }
 
 export function onEndTurnClick(state: InputState, ctx: InputContext): InputResult {
-  if (!ctx.connected || !canEndTurn(ctx.game, ctx.localSide)) {
+  if (!ctx.connected || ctx.ballisticPending || !canEndTurn(ctx.game, ctx.localSide)) {
     return { next: { ...state } };
   }
   return {
@@ -318,7 +395,7 @@ export function getHighlights(state: InputState, ctx: InputContext): HighlightSe
   }
   if (state.activeSkill === "build") {
     return {
-      moveHighlights: getLegalBuildTargets(ctx.game, ctx.localSide, state.buildSpiritSpend),
+      moveHighlights: getLegalBuildTargets(ctx.game, ctx.localSide, state.spiritSpend),
       attackHighlights: [],
     };
   }
@@ -328,6 +405,12 @@ export function getHighlights(state: InputState, ctx: InputContext): HighlightSe
       attackHighlights: getLegalAttackTargets(ctx.game, ctx.localSide),
     };
   }
+  if (state.activeSkill === "role4") {
+    return {
+      moveHighlights: getLegalBlinkTargets(ctx.game, ctx.localSide, state.spiritSpend),
+      attackHighlights: [],
+    };
+  }
   return {
     moveHighlights: [],
     attackHighlights: [],
@@ -335,7 +418,7 @@ export function getHighlights(state: InputState, ctx: InputContext): HighlightSe
 }
 
 export function getSpiritSelectorView(state: InputState, ctx: InputContext): SpiritSelectorView {
-  if (state.activeSkill !== "build") {
+  if (!isVariableSpiritSkill(state.activeSkill)) {
     return {
       visible: false,
       value: 0,
@@ -343,7 +426,7 @@ export function getSpiritSelectorView(state: InputState, ctx: InputContext): Spi
       max: 0,
     };
   }
-  const bounds = getBuildSpendBounds(ctx);
+  const bounds = getSpiritSpendBounds(state.activeSkill, ctx);
   if (bounds.max < 1) {
     return {
       visible: false,
@@ -354,7 +437,7 @@ export function getSpiritSelectorView(state: InputState, ctx: InputContext): Spi
   }
   return {
     visible: true,
-    value: Math.max(bounds.min, Math.min(bounds.max, state.buildSpiritSpend)),
+    value: Math.max(bounds.min, Math.min(bounds.max, state.spiritSpend)),
     min: bounds.min,
     max: bounds.max,
   };

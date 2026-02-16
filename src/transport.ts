@@ -7,6 +7,10 @@ export interface TransportStatus {
   detail: string;
 }
 
+export interface PeerRuntimeConfig {
+  iceServers: RTCIceServer[];
+}
+
 export interface ITransport {
   readonly name: string;
   onMessage(handler: (message: NetMessage) => void): void;
@@ -82,13 +86,15 @@ declare global {
 export class PeerJsTransport extends TransportBase {
   readonly name = "peerjs";
   private readonly preferredId: string;
+  private readonly runtimeConfig?: PeerRuntimeConfig;
   private peer: any | null = null;
   private connection: any | null = null;
   private localId = "";
 
-  constructor(localPeerId: string) {
+  constructor(localPeerId: string, runtimeConfig?: PeerRuntimeConfig) {
     super();
     this.preferredId = localPeerId.trim();
+    this.runtimeConfig = runtimeConfig;
   }
 
   start(): void {
@@ -99,7 +105,18 @@ export class PeerJsTransport extends TransportBase {
     }
 
     this.emitStatus("connecting", "creating peer");
-    this.peer = this.preferredId ? new PeerCtor(this.preferredId) : new PeerCtor();
+    if (this.runtimeConfig && Array.isArray(this.runtimeConfig.iceServers)) {
+      const options = {
+        config: {
+          iceServers: this.runtimeConfig.iceServers,
+        },
+      };
+      this.peer = this.preferredId
+        ? new PeerCtor(this.preferredId, options)
+        : new PeerCtor(options);
+    } else {
+      this.peer = this.preferredId ? new PeerCtor(this.preferredId) : new PeerCtor();
+    }
 
     this.peer.on("open", (id: string) => {
       this.localId = id;
@@ -198,7 +215,6 @@ export function createLoopbackTransport(): ITransport {
   return new LoopbackTransport();
 }
 
-export function createPeerJsTransport(localPeerId: string): ITransport {
-  return new PeerJsTransport(localPeerId);
+export function createPeerJsTransport(localPeerId: string, runtimeConfig?: PeerRuntimeConfig): ITransport {
+  return new PeerJsTransport(localPeerId, runtimeConfig);
 }
-

@@ -60,7 +60,7 @@ start "THchess Dev Server" cmd /k "cd /d %cd% && npm run dev -- --host 127.0.0.1
 echo [THchess] waiting for server startup...
 timeout /t 3 /nobreak >nul
 
-set URL=http://127.0.0.1:5173/pubilc/index.html%QUERY%
+set URL=http://127.0.0.1:5173/%QUERY%
 echo [THchess] opening two pages:
 echo   %URL%
 
