@@ -45,6 +45,16 @@ jobs:
             exit 1
           fi
 
+          REPO_META=$(curl -fsSL \
+            -H "Authorization: Bearer ${ROOT_SITE_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/Elisamin123456/elisamin123456.github.io || true)
+          if ! echo "$REPO_META" | grep -q '"push":[[:space:]]*true'; then
+            echo "::error::ROOT_SITE_PAT does not have push permission to Elisamin123456/elisamin123456.github.io."
+            echo "::error::Recreate PAT and grant repository permission: Contents = Read and write."
+            exit 1
+          fi
+
           if ! git clone "$AUTH_REPO" root-site >/tmp/git-clone.out 2>/tmp/git-clone.err; then
             echo "::error::git clone failed."
             cat /tmp/git-clone.err | sanitize_err
@@ -56,6 +66,7 @@ jobs:
           cd root-site
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "$AUTH_REPO"
           if [ -n "$(git status --porcelain THChess)" ]; then
             git add THChess
             git commit -m "deploy THChess from ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
