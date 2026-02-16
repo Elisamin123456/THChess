@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      ROOT_SITE_PAT: ${{ secrets.ROOT_SITE_PAT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,13 +24,26 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Validate secret
+        run: |
+          if [ -z "$ROOT_SITE_PAT" ]; then
+            echo "::error::ROOT_SITE_PAT is empty or missing in repository secrets."
+            exit 1
+          fi
       - name: Publish dist to root site /THChess
-        uses: JamesIves/github-pages-deploy-action@v4.7.3
-        with:
-          token: ${{ secrets.ROOT_SITE_PAT }}
-          repository-name: Elisamin123456/elisamin123456.github.io
-          branch: main
-          folder: dist
-          target-folder: THChess
-          clean: false
-          single-commit: true
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${ROOT_SITE_PAT}@github.com/Elisamin123456/elisamin123456.github.io.git" root-site
+          rm -rf root-site/THChess
+          mkdir -p root-site/THChess
+          rsync -av --delete dist/ root-site/THChess/
+          cd root-site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain THChess)" ]; then
+            git add THChess
+            git commit -m "deploy THChess from ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+            git push origin main
+          else
+            echo "No changes in THChess/, skip push."
+          fi
