@@ -33,7 +33,23 @@ jobs:
       - name: Publish dist to root site /THChess
         run: |
           set -euo pipefail
-          git clone "https://x-access-token:${ROOT_SITE_PAT}@github.com/Elisamin123456/elisamin123456.github.io.git" root-site
+          AUTH_REPO="https://x-access-token:${ROOT_SITE_PAT}@github.com/Elisamin123456/elisamin123456.github.io.git"
+          sanitize_err() {
+            sed -E 's#x-access-token:[^@]+@#x-access-token:***@#g'
+          }
+
+          if ! git ls-remote "$AUTH_REPO" >/tmp/git-check.out 2>/tmp/git-check.err; then
+            echo "::error::ROOT_SITE_PAT cannot access Elisamin123456/elisamin123456.github.io."
+            cat /tmp/git-check.err | sanitize_err
+            echo "::error::Check token permission: Contents=Read and write, and selected repository includes elisamin123456.github.io."
+            exit 1
+          fi
+
+          if ! git clone "$AUTH_REPO" root-site >/tmp/git-clone.out 2>/tmp/git-clone.err; then
+            echo "::error::git clone failed."
+            cat /tmp/git-clone.err | sanitize_err
+            exit 1
+          fi
           rm -rf root-site/THChess
           mkdir -p root-site/THChess
           rsync -av --delete dist/ root-site/THChess/
@@ -43,7 +59,11 @@ jobs:
           if [ -n "$(git status --porcelain THChess)" ]; then
             git add THChess
             git commit -m "deploy THChess from ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
-            git push origin main
+            if ! git push origin main >/tmp/git-push.out 2>/tmp/git-push.err; then
+              echo "::error::git push failed."
+              cat /tmp/git-push.err | sanitize_err
+              exit 1
+            fi
           else
             echo "No changes in THChess/, skip push."
           fi
