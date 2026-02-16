@@ -45,7 +45,12 @@ function parseInviteHash(inviteHash: string): string | null {
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 
 function readPeerRuntimeConfig(): PeerRuntimeConfig {
-  const raw = String(import.meta.env.VITE_ICE_SERVERS_JSON || "").trim();
+  const viteEnv = (import.meta as ImportMeta & { env?: Record<string, unknown> }).env;
+  const browserEnv =
+    typeof window !== "undefined"
+      ? (window as Window & { THCHESS_ICE_SERVERS_JSON?: string }).THCHESS_ICE_SERVERS_JSON
+      : "";
+  const raw = String(viteEnv?.VITE_ICE_SERVERS_JSON ?? browserEnv ?? "").trim();
   if (!raw) {
     return { iceServers: FALLBACK_ICE_SERVERS };
   }

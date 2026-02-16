@@ -1,4 +1,5 @@
 import { NetMessage } from "./protocol";
+import Peer from "peerjs";
 
 type StatusType = "idle" | "ready" | "connecting" | "connected" | "error" | "closed";
 
@@ -77,12 +78,6 @@ export class LoopbackTransport extends TransportBase {
   }
 }
 
-declare global {
-  interface Window {
-    Peer?: any;
-  }
-}
-
 export class PeerJsTransport extends TransportBase {
   readonly name = "peerjs";
   private readonly preferredId: string;
@@ -98,12 +93,6 @@ export class PeerJsTransport extends TransportBase {
   }
 
   start(): void {
-    const PeerCtor = window.Peer;
-    if (!PeerCtor) {
-      this.emitStatus("error", "PeerJS not loaded");
-      return;
-    }
-
     this.emitStatus("connecting", "creating peer");
     if (this.runtimeConfig && Array.isArray(this.runtimeConfig.iceServers)) {
       const options = {
@@ -112,10 +101,10 @@ export class PeerJsTransport extends TransportBase {
         },
       };
       this.peer = this.preferredId
-        ? new PeerCtor(this.preferredId, options)
-        : new PeerCtor(options);
+        ? new Peer(this.preferredId, options)
+        : new Peer(options);
     } else {
-      this.peer = this.preferredId ? new PeerCtor(this.preferredId) : new PeerCtor();
+      this.peer = this.preferredId ? new Peer(this.preferredId) : new Peer();
     }
 
     this.peer.on("open", (id: string) => {

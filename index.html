@@ -480,11 +480,14 @@
         }
       }
     </style>
+    <script>
+      window.THCHESS_ICE_SERVERS_JSON =
+        '[{"urls":"stun:stun.relay.metered.ca:80"},{"urls":"turn:global.relay.metered.ca:80","username":"329dbdd5c5b60609dbfead99","credential":"HN3XYHHIYayjEpS/"},{"urls":"turn:global.relay.metered.ca:80?transport=tcp","username":"329dbdd5c5b60609dbfead99","credential":"HN3XYHHIYayjEpS/"},{"urls":"turn:global.relay.metered.ca:443","username":"329dbdd5c5b60609dbfead99","credential":"HN3XYHHIYayjEpS/"},{"urls":"turns:global.relay.metered.ca:443?transport=tcp","username":"329dbdd5c5b60609dbfead99","credential":"HN3XYHHIYayjEpS/"}]';
+    </script>
   </head>
   <body>
     <div id="app"></div>
     <div id="debug-root"></div>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <script type="module" src="./main.ts"></script>
+    <script type="module" src="./entry.js"></script>
   </body>
 </html>

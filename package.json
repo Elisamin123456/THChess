@@ -1,10 +1,14 @@
 {
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run build:app",
+    "build:app": "esbuild src/main.ts --bundle --format=esm --outfile=assets/app.js && powershell -NoProfile -Command \"Copy-Item assets/app.js pubilc/assets/app.js -Force; if (Test-Path dist/assets) { Copy-Item assets/app.js dist/assets/app.js -Force }\"",
     "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "peerjs": "^1.5.5"
   }
 }
