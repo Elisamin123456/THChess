@@ -2,9 +2,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "sync:root": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-root-from-dist.ps1",
-    "build:root": "npm run build && npm run sync:root"
+    "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^7.3.1"

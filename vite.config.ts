@@ -4,10 +4,11 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
-    root: "pubilc",
+    root: ".",
+    publicDir: "pubilc",
     base: env.VITE_APP_BASE || "/",
     build: {
-      outDir: "../dist",
+      outDir: "dist",
       emptyOutDir: true,
     },
   };
