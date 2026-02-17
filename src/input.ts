@@ -1,5 +1,6 @@
-﻿import {
+import {
   canEndTurn,
+  canUseRoleSkillByState,
   canUseScout,
   createAmuletCommand,
   createAttackCommand,
@@ -130,10 +131,10 @@ export function getSkillAvailability(ctx: InputContext): SkillAvailability {
     build: hasAnyBuildTarget(ctx),
     scout: canUseScout(ctx.game, ctx.localSide),
     attack: getLegalAttackTargets(ctx.game, ctx.localSide).length > 0,
-    role1: self.skills.role1 && self.stats.spirit >= 1,
-    role2: self.skills.role2 && self.stats.spirit >= 1,
-    role3: self.skills.role3 && self.stats.spirit >= 1,
-    role4: self.skills.role4 && hasAnyBlinkTarget(ctx),
+    role1: canUseRoleSkillByState(ctx.game, ctx.localSide, "role1") && self.skills.role1 && self.stats.spirit >= 1,
+    role2: canUseRoleSkillByState(ctx.game, ctx.localSide, "role2") && self.skills.role2 && self.stats.spirit >= 1,
+    role3: canUseRoleSkillByState(ctx.game, ctx.localSide, "role3") && self.skills.role3 && self.stats.spirit >= 1,
+    role4: canUseRoleSkillByState(ctx.game, ctx.localSide, "role4") && self.skills.role4 && hasAnyBlinkTarget(ctx),
   };
 }
 
@@ -158,6 +159,9 @@ export function onSkillClick(state: InputState, skill: SkillId, ctx: InputContex
   }
 
   if (isRoleSkillId(skill) && !localUnit(ctx).skills[skill]) {
+    return { next: { ...nextState, activeSkill: null } };
+  }
+  if (isRoleSkillId(skill) && !canUseRoleSkillByState(ctx.game, ctx.localSide, skill)) {
     return { next: { ...nextState, activeSkill: null } };
   }
 

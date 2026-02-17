@@ -1,4 +1,5 @@
-﻿import { ConnectRequest, createDebugPanel } from "./debug";
+import { ConnectRequest, createDebugPanel } from "./debug";
+import { applyBpAction, createInitialBpState, getBpTurn, isBpDone, isBpOptionEnabled } from "./bp";
 import {
   applyCommandEnvelope,
   buildPerspective,
@@ -18,7 +19,16 @@ import {
   onEndTurnClick as mapEndTurnClick,
   onSkillClick as mapSkillClick,
 } from "./input";
-import { Command, CommandEnvelope, GameState, NetMessage, Side, keyToCoord } from "./protocol";
+import {
+  BpActionMessage,
+  BpBanOptionId,
+  Command,
+  CommandEnvelope,
+  GameState,
+  NetMessage,
+  Side,
+  keyToCoord,
+} from "./protocol";
 import {
   ITransport,
   PeerRuntimeConfig,
@@ -31,6 +41,10 @@ import { createGameView } from "./view";
 
 function isCommandEnvelope(message: NetMessage): message is CommandEnvelope {
   return message.kind === "command";
+}
+
+function isBpActionMessage(message: NetMessage): message is BpActionMessage {
+  return message.kind === "bpAction";
 }
 
 function createPeerId(): string {
@@ -91,10 +105,10 @@ async function bootstrap(): Promise<void> {
   const debugPanel = createDebugPanel(debugRoot, { debugEnabled });
   const replayDownloadLine = document.createElement("div");
   replayDownloadLine.className = "debug-line";
-  replayDownloadLine.textContent = "对局结束后可下载 .rpy 复盘文件";
+  replayDownloadLine.textContent = "Replay download available after match ends";
   replayDownloadLine.style.marginTop = "8px";
   const replayDownloadLink = document.createElement("a");
-  replayDownloadLink.textContent = "下载 replay.rpy";
+  replayDownloadLink.textContent = "download replay.rpy";
   replayDownloadLink.style.display = "none";
   replayDownloadLink.style.color = "#9ec8ff";
   replayDownloadLink.style.textDecoration = "underline";
@@ -107,8 +121,11 @@ async function bootstrap(): Promise<void> {
     state.players.blue.stats.gold = 400;
     state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
   }
-  const replayInitialState: GameState = JSON.parse(JSON.stringify(state));
+  let replayInitialState: GameState = JSON.parse(JSON.stringify(state));
   let localSide: Side = testMode ? "blue" : debugPanel.getSelectedSide();
+  let sessionPhase: "battle" | "bp" = "battle";
+  let bpState = createInitialBpState();
+  let bpSelectedOption: BpBanOptionId | null = null;
   let inputState = createInitialInputState();
   let transport: ITransport | null = null;
   let isConnected = testMode;
@@ -122,6 +139,16 @@ async function bootstrap(): Promise<void> {
   const peerRuntimeConfig = readPeerRuntimeConfig();
 
   const render = (): void => {
+    if (sessionPhase === "bp") {
+      view.renderBp({
+        bp: bpState,
+        localSide,
+        connected: isConnected,
+        selectedOption: bpSelectedOption,
+      });
+      return;
+    }
+
     const ctx = { game: state, localSide, connected: isConnected, ballisticPending };
     view.render({
       state,
@@ -138,10 +165,80 @@ async function bootstrap(): Promise<void> {
     scheduleTestAiTurn();
   };
 
+  const resetReplayDownload = (): void => {
+    if (replayDownloadUrl) {
+      URL.revokeObjectURL(replayDownloadUrl);
+      replayDownloadUrl = null;
+    }
+    replayDownloadLink.style.display = "none";
+    if (replayDownloadLine.firstChild) {
+      replayDownloadLine.firstChild.textContent = "Replay download available after match ends";
+    }
+  };
+
+  const startBattlePhase = (picks?: { blue: BpBanOptionId | null; red: BpBanOptionId | null }): void => {
+    const bluePick = picks?.blue && picks.blue !== "none" ? picks.blue : null;
+    const redPick = picks?.red && picks.red !== "none" ? picks.red : null;
+    if (picks && (!bluePick || !redPick)) {
+      debugPanel.log("BP is incomplete; cannot start battle");
+      return;
+    }
+
+    state = bluePick && redPick ? createInitialState({ blue: bluePick, red: redPick }) : createInitialState();
+    if (testMode) {
+      state.players.blue.stats.gold = 400;
+      state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
+    }
+    replayInitialState = JSON.parse(JSON.stringify(state));
+    replayCommands.length = 0;
+    resetReplayDownload();
+    inputState = createInitialInputState();
+    ballisticPending = false;
+    bpSelectedOption = null;
+    sessionPhase = "battle";
+  };
+
+  const startBpPhase = (): void => {
+    sessionPhase = "bp";
+    bpState = createInitialBpState();
+    bpSelectedOption = null;
+    inputState = createInitialInputState();
+    ballisticPending = false;
+  };
+
+  const applyBpMessage = (message: BpActionMessage, source: "local" | "remote"): boolean => {
+    if (sessionPhase !== "bp") {
+      debugPanel.log(`${source} BP message ignored: not in BP phase`);
+      return false;
+    }
+    const outcome = applyBpAction(bpState, {
+      actor: message.actor,
+      action: message.action,
+      mechId: message.mechId,
+    });
+    if (outcome.ok === false) {
+      debugPanel.log(`${source} BP action rejected: ${outcome.reason}`);
+      return false;
+    }
+
+    bpState = outcome.state;
+    bpSelectedOption = null;
+
+    if (isBpDone(bpState)) {
+      startBattlePhase({
+        blue: bpState.sides.blue.pick,
+        red: bpState.sides.red.pick,
+      });
+    }
+
+    render();
+    return true;
+  };
+
   const applyEnvelope = (envelope: CommandEnvelope, source: "local" | "remote"): boolean => {
     const prevState = state;
     const outcome = applyCommandEnvelope(state, envelope);
-    if (!outcome.ok) {
+    if (outcome.ok === false) {
       debugPanel.log(`${source} \u547d\u4ee4\u62d2\u7edd: ${outcome.reason}`);
       return false;
     }
@@ -185,7 +282,7 @@ async function bootstrap(): Promise<void> {
       replayDownloadLink.href = replayDownloadUrl;
       replayDownloadLink.download = buildReplayFilename(new Date());
       replayDownloadLink.style.display = "inline";
-      replayDownloadLine.firstChild!.textContent = "对局结束，复盘文件已生成：";
+      replayDownloadLine.firstChild!.textContent = "Replay file is ready:";
     }
 
     render();
@@ -197,7 +294,7 @@ async function bootstrap(): Promise<void> {
       return;
     }
     if (!transport || !isConnected) {
-      debugPanel.log("\u672a\u8fde\u63a5\uff0c\u547d\u4ee4\u672a\u53d1\u9001");
+      debugPanel.log("Not connected, command not sent");
       return;
     }
     if (debugEnabled) {
@@ -208,7 +305,27 @@ async function bootstrap(): Promise<void> {
     transport.send(envelope);
   };
 
+  const sendBpMessage = (message: BpActionMessage): void => {
+    if (testMode) {
+      return;
+    }
+    if (!transport || !isConnected) {
+      debugPanel.log("Not connected, BP action not sent");
+      return;
+    }
+    if (debugEnabled) {
+      debugPanel.log(
+        `send bp actor=${message.actor} action=${message.action} mech=${message.mechId}`
+      );
+    }
+    transport.send(message);
+  };
+
   const issueLocalCommand = (command: Command): void => {
+    if (sessionPhase !== "battle") {
+      debugPanel.log("Cannot issue battle command during BP phase");
+      return;
+    }
     if (!isConnected) {
       debugPanel.log("\u8fde\u63a5\u672a\u5b8c\u6210\uff0c\u6682\u65f6\u65e0\u6cd5\u64cd\u4f5c");
       return;
@@ -227,8 +344,48 @@ async function bootstrap(): Promise<void> {
     }
   };
 
+  const issueLocalBpConfirm = (): void => {
+    if (sessionPhase !== "bp") {
+      return;
+    }
+    if (!isConnected) {
+      debugPanel.log("Not connected yet, BP action is unavailable");
+      return;
+    }
+    const turn = getBpTurn(bpState);
+    if (!turn) {
+      debugPanel.log("BP already completed");
+      return;
+    }
+    if (turn.side !== localSide) {
+      debugPanel.log("It is not your BP turn");
+      return;
+    }
+    if (!bpSelectedOption) {
+      debugPanel.log("Please select a BP option first");
+      return;
+    }
+    if (turn.action === "pick" && bpSelectedOption === "none") {
+      debugPanel.log("Empty pick is not allowed");
+      return;
+    }
+    if (!isBpOptionEnabled(bpState, localSide, bpSelectedOption)) {
+      debugPanel.log("This BP option cannot be confirmed now");
+      return;
+    }
+    const message: BpActionMessage = {
+      kind: "bpAction",
+      actor: localSide,
+      action: turn.action,
+      mechId: bpSelectedOption,
+    };
+    if (applyBpMessage(message, "local")) {
+      sendBpMessage(message);
+    }
+  };
+
   const runTestAiTurn = (): void => {
-    if (!testMode || state.winner || state.turn.side !== "red" || ballisticPending) {
+    if (!testMode || sessionPhase !== "battle" || state.winner || state.turn.side !== "red" || ballisticPending) {
       return;
     }
 
@@ -262,7 +419,7 @@ async function bootstrap(): Promise<void> {
       window.clearTimeout(testAiTimer);
       testAiTimer = null;
     }
-    if (state.winner || ballisticPending || state.turn.side !== "red" || state.turn.acted) {
+    if (sessionPhase !== "battle" || state.winner || ballisticPending || state.turn.side !== "red" || state.turn.acted) {
       return;
     }
     testAiTimer = window.setTimeout(() => {
@@ -280,6 +437,9 @@ async function bootstrap(): Promise<void> {
 
     if (status.type === "connected") {
       isConnected = true;
+      if (!testMode) {
+        startBpPhase();
+      }
       render();
       return;
     }
@@ -288,6 +448,10 @@ async function bootstrap(): Promise<void> {
       isConnected = false;
       inputState = createInitialInputState();
       ballisticPending = false;
+      if (!testMode) {
+        sessionPhase = "battle";
+        bpSelectedOption = null;
+      }
       if (sessionMode === "receiver" && transport) {
         const invite = buildInviteHash(transport.getLocalId());
         debugPanel.setInviteHash(invite);
@@ -305,6 +469,10 @@ async function bootstrap(): Promise<void> {
       isConnected = false;
       inputState = createInitialInputState();
       ballisticPending = false;
+      if (!testMode) {
+        sessionPhase = "battle";
+        bpSelectedOption = null;
+      }
       render();
       return;
     }
@@ -312,6 +480,10 @@ async function bootstrap(): Promise<void> {
     isConnected = false;
     inputState = createInitialInputState();
     ballisticPending = false;
+    if (!testMode) {
+      sessionPhase = "battle";
+      bpSelectedOption = null;
+    }
     render();
   };
 
@@ -331,7 +503,23 @@ async function bootstrap(): Promise<void> {
       if (mySeq !== transportSeq) {
         return;
       }
+      if (isBpActionMessage(message)) {
+        if (debugEnabled) {
+          debugPanel.log(
+            `recv bp actor=${message.actor} action=${message.action} mech=${message.mechId}`,
+          );
+        }
+        if (transport?.name === "loopback" && message.actor === localSide) {
+          return;
+        }
+        applyBpMessage(message, "remote");
+        return;
+      }
       if (isCommandEnvelope(message)) {
+        if (sessionPhase !== "battle") {
+          debugPanel.log("Received command during BP phase; ignored");
+          return;
+        }
         if (debugEnabled) {
           debugPanel.log(
             `recv command seq=${message.seq} actor=${message.command.actor} type=${message.command.type}`,
@@ -350,6 +538,9 @@ async function bootstrap(): Promise<void> {
 
   view.setHandlers({
     onSkillClick(skill) {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       const next = mapSkillClick(inputState, skill, {
         game: state,
         localSide,
@@ -364,6 +555,9 @@ async function bootstrap(): Promise<void> {
       }
     },
     onCellClick(coord) {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       const next = mapBoardClick(inputState, coord, {
         game: state,
         localSide,
@@ -378,6 +572,9 @@ async function bootstrap(): Promise<void> {
       }
     },
     onEndTurnClick() {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       const next = mapEndTurnClick(inputState, {
         game: state,
         localSide,
@@ -392,6 +589,9 @@ async function bootstrap(): Promise<void> {
       }
     },
     onSpiritAdjust(delta) {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       const next = mapSpiritAdjust(inputState, delta, {
         game: state,
         localSide,
@@ -402,7 +602,20 @@ async function bootstrap(): Promise<void> {
       render();
     },
     onUnlockSkill(skill) {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       issueLocalCommand(createUnlockSkillCommand(localSide, skill));
+    },
+    onBpOptionClick(optionId) {
+      if (sessionPhase !== "bp") {
+        return;
+      }
+      bpSelectedOption = optionId;
+      render();
+    },
+    onBpConfirm() {
+      issueLocalBpConfirm();
     },
   });
 
@@ -411,6 +624,7 @@ async function bootstrap(): Promise<void> {
       localSide = "blue";
       inputState = createInitialInputState();
       ballisticPending = false;
+      bpSelectedOption = null;
       debugPanel.log("test\u6a21\u5f0f\u4e0b\u672c\u673a\u63a7\u5236\u65b9\u56fa\u5b9a\u4e3a P1/\u84dd\u65b9");
       render();
       return;
@@ -418,6 +632,7 @@ async function bootstrap(): Promise<void> {
     localSide = side;
     inputState = createInitialInputState();
     ballisticPending = false;
+    bpSelectedOption = null;
     debugPanel.log(
       `\u672c\u673a\u63a7\u5236\u65b9: ${side === "blue" ? "P1/\u84dd\u65b9" : "P2/\u7ea2\u65b9"}`,
     );
@@ -432,6 +647,8 @@ async function bootstrap(): Promise<void> {
     debugPanel.setInviteHash("");
     inputState = createInitialInputState();
     ballisticPending = false;
+    sessionPhase = "battle";
+    bpSelectedOption = null;
 
     if (request.mode === "receiver") {
       sessionMode = "receiver";
@@ -461,6 +678,8 @@ async function bootstrap(): Promise<void> {
     sessionMode = null;
     pendingRemoteId = null;
     ballisticPending = false;
+    sessionPhase = "battle";
+    bpSelectedOption = null;
     const loopback = createLoopbackTransport();
     bindTransport(loopback);
     loopback.connect("self");

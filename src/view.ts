@@ -1,11 +1,21 @@
-﻿import { canEndTurn } from "./game";
+import { canEndTurn } from "./game";
 import { HighlightSet, InputState, SkillAvailability, SpiritSelectorView } from "./input";
+import { BpState, getBanAgainst, getBpPhaseLabel, getBpTurn, isBpOptionEnabled } from "./bp";
 import {
+  BP_OPTIONS,
+  getMechDefinition,
+  getMechName,
+  getRoleSkillDefinition,
+  isRoleSkillImplemented,
+} from "./mech";
+import {
+  BpBanOptionId,
   BOARD_HEIGHT,
   BOARD_WIDTH,
   COL_LABELS,
   Coord,
   GameState,
+  MechId,
   PerspectiveCell,
   PerspectiveState,
   ProjectileEffect,
@@ -17,6 +27,7 @@ import {
   getSideLabel,
   isRoleSkillId,
   keyToCoord,
+  oppositeSide,
 } from "./protocol";
 
 interface Assets {
@@ -24,11 +35,11 @@ interface Assets {
   grass: HTMLImageElement;
   spawn: HTMLImageElement;
   wall: HTMLImageElement;
-  char: HTMLImageElement;
+  chars: Record<MechId, HTMLImageElement>;
   needle: HTMLImageElement;
   amulet: HTMLImageElement;
   orbEffect: HTMLImageElement;
-  roleIcons: Record<RoleSkillId, SkillIconSet>;
+  roleIconsByMech: Record<MechId, Partial<Record<RoleSkillId, SkillIconSet>>>;
   numbers: Map<number, HTMLImageElement>;
   numberSrc: Map<number, string>;
 }
@@ -79,12 +90,22 @@ interface ProjectileBatchState {
   resolve: () => void;
 }
 
+interface BpCardLayout {
+  id: BpBanOptionId;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export interface ViewHandlers {
   onCellClick: (coord: Coord) => void;
   onSkillClick: (skill: SkillId) => void;
   onUnlockSkill: (skill: RoleSkillId) => void;
   onEndTurnClick: () => void;
   onSpiritAdjust: (delta: number) => void;
+  onBpOptionClick: (optionId: BpBanOptionId) => void;
+  onBpConfirm: () => void;
 }
 
 export interface RenderPayload {
@@ -99,9 +120,17 @@ export interface RenderPayload {
   spiritSelector: SpiritSelectorView;
 }
 
+export interface BpRenderPayload {
+  bp: BpState;
+  localSide: Side;
+  connected: boolean;
+  selectedOption: BpBanOptionId | null;
+}
+
 export interface GameView {
   setHandlers(handlers: ViewHandlers): void;
   render(payload: RenderPayload): void;
+  renderBp(payload: BpRenderPayload): void;
   playAttackAnimation(actor: Side, from: Coord, to: Coord): void;
   playProjectileAnimations(projectiles: ProjectileEffect[]): Promise<void>;
 }
@@ -117,18 +146,20 @@ const SKILLS: SkillConfig[] = [
   { id: "role4", label: "", basic: false },
 ];
 
-const SKILL_TOOLTIPS: Record<SkillId, string> = {
+const BASIC_SKILL_TOOLTIPS: Record<"move" | "build" | "scout" | "attack", string> = {
   move:
-    "\u8fdb\u884c\u4e00\u6b21\u8ddd\u79bb\u4e3a1\u76848\u5411\u79fb\u52a8\u3002\u5f53\u671d\u5411\u6b63\u4e0a\u4e0b\u5de6\u53f3\u79fb\u52a8\u65f6\uff0c\u4f7f\u81ea\u8eab\u7075\u529b+1\uff0c\u5426\u5219\u4e0d\u53d8\u3002\u65e0\u6cd5\u79fb\u52a8\u81f3\u5899\u4f53\u6216\u5176\u4ed6\u673a\u4f53\u3002",
+    "Move. Make one 8-direction step (range 1). Orthogonal move grants +1 spirit; diagonal grants none. Cannot move onto walls or units.",
   build:
-    "\u6d88\u8d39N\u7075\u529b\uff0c\u5728\u8ddd\u79bb\u4e3aN\u7684\u8303\u56f4\u5185\u5efa\u9020\u751f\u547d\u503c/\u751f\u547d\u503c\u4e0a\u9650\u4e3aN\u7684\u5899\u4f53\u3002\u5899\u4f53\u65e0\u6cd5\u5efa\u9020\u5728\u4efb\u610f\u5355\u4f4d\u4e4b\u4e0a\u3002",
-  scout: "\u6d88\u8d391\u7075\u529b\uff0c\u7acb\u523b\u83b7\u5f97\u5bf9\u65b9\u5750\u6807\u3002",
-  attack: "\u6d88\u8d390\u7075\u529b\uff0c\u8fdb\u884c\u4e00\u6b21\u8ddd\u79bb\u4e3a1\u7684\u653b\u51fb\u3002",
-  role1: "\u8017N\u7075\u529b\uff0c\u671d\u76ee\u6807\u65b9\u5411\u9010\u53d1N\u679a\u5c01\u9b54\u9488\uff0c\u547d\u4e2d\u9996\u4e2a\u5355\u4f4d\u90201\u4f24\u5bb3\u3002",
-  role2:
-    "\u6d88\u8d391\u7075\u529b\uff0c\u9020\u6210\u7a7f\u900f\u4f24\u5bb3\uff0c\u5bf9\u8def\u5f84\u4e0a\u6240\u6709\u5355\u4f4d\u9020\u62101\u4f24\u5bb3\uff0c\u5bf9\u654c\u673a\u9020\u6210\u4f24\u5bb3\u540e\u8fd4\u8fd81\u7075\u529b\u3002",
-  role3: "\u8017N\u7075\u529b\uff0c\u83b7\u5f97\u534a\u5f84N\u89c6\u91ce\uff0c\u6301\u7eedN\u56de\u5408\u3002",
-  role4: "\u8017N\u7075\u529b\uff0c\u95ea\u73b0\u81f3\u534a\u5f84N\u5185\u7a7a\u683c\uff08\u975e\u79fb\u52a8\uff09\u3002",
+    "Build. Spend N spirit to create a wall with HP N / Max HP N within range N. Walls cannot be built on occupied cells.",
+  scout: "Scout. Spend 1 spirit to reveal enemy coordinate immediately.",
+  attack: "Attack. Spend 0 spirit to perform a range-1 attack.",
+};
+
+const ROLE_SLOT_LABELS: Record<RoleSkillId, string> = {
+  role1: "Skill 1",
+  role2: "Skill 2",
+  role3: "Skill 3",
+  role4: "Skill 4",
 };
 
 const VARIABLE_SPIRIT_SKILLS = new Set<SkillId>(["build", "role1", "role3", "role4"]);
@@ -152,13 +183,16 @@ async function loadRoleIconSet(prefix: string): Promise<SkillIconSet> {
 }
 
 async function loadAssets(): Promise<Assets> {
-  const [ground, grass, spawn, wall, char, needle, amulet, orbEffect, role1, role2, role3, role4] =
+  const [ground, grass, spawn, wall, reimu, marisa, koishi, aya, needle, amulet, orbEffect, role1, role2, role3, role4] =
     await Promise.all([
       loadImage("./assets/tiles/ground.png"),
       loadImage("./assets/tiles/grass.png"),
       loadImage("./assets/tiles/spawn.png"),
       loadImage("./assets/tiles/wall.png"),
       loadImage("./assets/char/reimu.png"),
+      loadImage("./assets/char/marisa.png"),
+      loadImage("./assets/char/koishi.png"),
+      loadImage("./assets/char/aya.png"),
       loadImage("./assets/bullet/reimu/reimuneedle.png"),
       loadImage("./assets/bullet/reimu/reimuamulet.png"),
       loadImage("./assets/bullet/reimu/yinyangorb.png"),
@@ -188,15 +222,25 @@ async function loadAssets(): Promise<Assets> {
     grass,
     spawn,
     wall,
-    char,
+    chars: {
+      reimu,
+      marisa,
+      koishi,
+      aya,
+    },
     needle,
     amulet,
     orbEffect,
-    roleIcons: {
-      role1,
-      role2,
-      role3,
-      role4,
+    roleIconsByMech: {
+      reimu: {
+        role1,
+        role2,
+        role3,
+        role4,
+      },
+      marisa: {},
+      koishi: {},
+      aya: {},
     },
     numbers,
     numberSrc,
@@ -288,12 +332,18 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     onUnlockSkill: () => undefined,
     onEndTurnClick: () => undefined,
     onSpiritAdjust: () => undefined,
+    onBpOptionClick: () => undefined,
+    onBpConfirm: () => undefined,
   };
   let lastPayload: RenderPayload | null = null;
+  let lastBpPayload: BpRenderPayload | null = null;
+  let currentMode: "battle" | "bp" = "battle";
   let boardMetrics: BoardMetrics | null = null;
+  const bpCardLayouts: BpCardLayout[] = [];
   let attackAnimation: AttackAnimation | null = null;
   let animationFrame = 0;
   let hoverCoord: Coord | null = null;
+  let hoverBpOption: BpBanOptionId | null = null;
 
   let projectileId = 0;
   let projectileBatchId = 0;
@@ -371,6 +421,28 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   roleSkillGrid.className = "role-skill-grid";
   skillLeft.appendChild(roleSkillGrid);
 
+  const bpSkillSection = document.createElement("div");
+  bpSkillSection.className = "bp-skill-section";
+  bpSkillSection.style.display = "none";
+  skillLayout.appendChild(bpSkillSection);
+
+  const bpSkillTitle = document.createElement("div");
+  bpSkillTitle.className = "bp-skill-title";
+  bpSkillTitle.textContent = "Mech Skills";
+  bpSkillSection.appendChild(bpSkillTitle);
+
+  const bpSkillGrid = document.createElement("div");
+  bpSkillGrid.className = "bp-skill-grid";
+  bpSkillSection.appendChild(bpSkillGrid);
+
+  const bpSkillItems = new Map<RoleSkillId, HTMLDivElement>();
+  for (const roleSkillId of ["role1", "role2", "role3", "role4"] as RoleSkillId[]) {
+    const item = document.createElement("div");
+    item.className = "bp-skill-item hollow-frame";
+    bpSkillGrid.appendChild(item);
+    bpSkillItems.set(roleSkillId, item);
+  }
+
   const skillButtons = new Map<SkillId, HTMLButtonElement>();
   const roleDurationBadges = new Map<RoleSkillId, HTMLImageElement>();
 
@@ -411,8 +483,36 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     tooltip.style.display = "none";
   }
 
+  function resolvePreviewMechForSkillPanel(): MechId | null {
+    if (currentMode === "bp") {
+      if (!lastBpPayload || !lastBpPayload.selectedOption || lastBpPayload.selectedOption === "none") {
+        return null;
+      }
+      return lastBpPayload.selectedOption;
+    }
+    if (!lastPayload) {
+      return null;
+    }
+    return lastPayload.state.players[lastPayload.localSide].mechId;
+  }
+
+  function getTooltipText(skill: SkillId): string {
+    if (skill === "move" || skill === "build" || skill === "scout" || skill === "attack") {
+      return BASIC_SKILL_TOOLTIPS[skill];
+    }
+    const mechId = resolvePreviewMechForSkillPanel();
+    if (!mechId) {
+      return "Please select a mech first.";
+    }
+    const roleSkill = getRoleSkillDefinition(mechId, skill);
+    if (!roleSkill.implemented) {
+      return roleSkill.name ? `${roleSkill.name}` + "\nDescription pending." : "This role skill is not implemented for this mech.";
+    }
+    return roleSkill.description ? `${roleSkill.name}\n${roleSkill.description}` : roleSkill.name;
+  }
+
   function showTooltip(skill: SkillId, anchor: HTMLElement): void {
-    const text = SKILL_TOOLTIPS[skill];
+    const text = getTooltipText(skill);
     if (!text) {
       return;
     }
@@ -437,6 +537,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       !lastPayload.state.winner &&
       lastPayload.connected &&
       lastPayload.state.turn.side === lastPayload.localSide &&
+      isRoleSkillImplemented(unit.mechId, skill) &&
       !unit.skills[skill] &&
       unit.stats.gold >= 100;
 
@@ -495,6 +596,9 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     });
 
     button.addEventListener("click", () => {
+      if (currentMode !== "battle") {
+        return;
+      }
       if (!lastPayload) {
         return;
       }
@@ -549,6 +653,10 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   endTurnButton.className = "end-turn-btn hollow-frame";
   endTurnButton.textContent = "\u7a7a\u8fc7";
   endTurnButton.addEventListener("click", () => {
+    if (currentMode === "bp") {
+      handlers.onBpConfirm();
+      return;
+    }
     handlers.onEndTurnClick();
   });
   skillActions.appendChild(endTurnButton);
@@ -775,12 +883,13 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       const px = left + drawPos.x * tile;
       const py = top + drawPos.y * tile;
       const pad = Math.floor(tile * 0.08);
-      ctx.drawImage(assets.char, px + pad, py + pad, tile - pad * 2, tile - pad * 2);
+      const unit = payload.state.players[side];
+      const charImage = assets.chars[unit.mechId] ?? assets.chars.reimu;
+      ctx.drawImage(charImage, px + pad, py + pad, tile - pad * 2, tile - pad * 2);
       ctx.strokeStyle = side === "blue" ? "#58a8ff" : "#ff6565";
       ctx.lineWidth = Math.max(2, Math.floor(tile * 0.08));
       ctx.strokeRect(px + 2, py + 2, tile - 4, tile - 4);
 
-      const unit = payload.state.players[side];
       if (unit.effects.orbTurns > 0) {
         const centerX = px + tile * 0.5;
         const centerY = py + tile * 0.5;
@@ -925,6 +1034,18 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   }
 
   boardCanvas.addEventListener("mousemove", (event) => {
+    if (currentMode === "bp") {
+      const nextHover = getBpOptionFromClient(event.clientX, event.clientY);
+      if (nextHover === hoverBpOption) {
+        return;
+      }
+      hoverBpOption = nextHover;
+      if (lastBpPayload) {
+        renderBp(lastBpPayload);
+      }
+      return;
+    }
+
     const nextHover = getBoardCoordFromClient(event.clientX, event.clientY);
     if (coordsOrNullEqual(nextHover, hoverCoord)) {
       return;
@@ -936,6 +1057,15 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   });
 
   boardCanvas.addEventListener("mouseleave", () => {
+    if (currentMode === "bp") {
+      if (hoverBpOption !== null) {
+        hoverBpOption = null;
+        if (lastBpPayload) {
+          renderBp(lastBpPayload);
+        }
+      }
+      return;
+    }
     if (!hoverCoord) {
       return;
     }
@@ -949,6 +1079,15 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     hideUnlockPopup();
     hideTooltip();
 
+    if (currentMode === "bp") {
+      const optionId = getBpOptionFromClient(event.clientX, event.clientY);
+      if (!optionId) {
+        return;
+      }
+      handlers.onBpOptionClick(optionId);
+      return;
+    }
+
     const coord = getBoardCoordFromClient(event.clientX, event.clientY);
     if (!coord) {
       return;
@@ -959,30 +1098,44 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   function renderSkillState(payload: RenderPayload): void {
     const availability = payload.skillAvailability;
     const self = payload.state.players[payload.localSide];
+    const mech = getMechDefinition(self.mechId);
+
+    skillLeft.style.display = "flex";
+    bpSkillSection.style.display = "none";
 
     for (const skill of SKILLS) {
-      const button = skillButtons.get(skill.id);
+      const skillId = skill.id;
+      const button = skillButtons.get(skillId);
       if (!button) {
         continue;
       }
 
-      const isRole = isRoleSkillId(skill.id);
-      const unlocked = !isRole || self.skills[skill.id];
-      const usable = unlocked && availability[skill.id];
+      const isRole = isRoleSkillId(skillId);
+      const roleImplemented = isRole ? isRoleSkillImplemented(self.mechId, skillId) : true;
+      const unlocked = isRole ? roleImplemented && self.skills[skillId] : true;
+      const usable = unlocked && availability[skillId];
 
       button.classList.toggle("skill-usable", usable);
       button.classList.toggle("skill-disabled", !usable);
-      button.classList.toggle("skill-selected", payload.input.activeSkill === skill.id);
-      button.classList.toggle("skill-quickcast", payload.input.quickCast && skill.id === "move");
-      button.classList.toggle("skill-locked", isRole && !unlocked);
+      button.classList.toggle("skill-selected", payload.input.activeSkill === skillId);
+      button.classList.toggle("skill-quickcast", payload.input.quickCast && skillId === "move");
+      button.classList.toggle("skill-locked", isRole && (!unlocked || !roleImplemented));
       button.disabled = false;
 
       if (isRole) {
-        const icons = assets.roleIcons[skill.id];
-        const icon = payload.input.activeSkill === skill.id ? icons.selected : usable ? icons.selecting : icons.normal;
-        button.style.backgroundImage = `url('${icon.src}')`;
+        const roleSkill = mech.roleSkills[skillId];
+        const iconSet = assets.roleIconsByMech[self.mechId]?.[skillId];
+        if (iconSet) {
+          const icon = payload.input.activeSkill === skillId ? iconSet.selected : usable ? iconSet.selecting : iconSet.normal;
+          button.style.backgroundImage = `url('${icon.src}')`;
+          button.textContent = "";
+        } else {
+          button.style.backgroundImage = "none";
+          button.textContent = roleSkill.name || ROLE_SLOT_LABELS[skillId];
+        }
       } else {
         button.style.backgroundImage = "none";
+        button.textContent = skill.label;
       }
     }
 
@@ -993,7 +1146,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
         continue;
       }
       const src = getDisplayNumberSrc(assets, orbTurns);
-      if (!src || !self.skills.role3) {
+      if (!src || !self.skills.role3 || !isRoleSkillImplemented(self.mechId, "role3")) {
         badge.style.display = "none";
         continue;
       }
@@ -1006,6 +1159,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       payload.ballisticPending ||
       payload.state.turn.acted ||
       !canEndTurn(payload.state, payload.localSide);
+    endTurnButton.textContent = "\u7a7a\u8fc7";
 
     refreshSpiritPopup(payload);
   }
@@ -1027,6 +1181,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   }
 
   function renderStatus(payload: RenderPayload): void {
+    statusTitle.textContent = "\u6570\u503c";
     const unit = payload.state.players[payload.localSide];
     statusHp.textContent = `\u751f\u547d\u503c: ${unit.stats.hp}`;
     statusSpirit.textContent =
@@ -1042,23 +1197,240 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     if (announcements.length === 0) {
       const empty = document.createElement("div");
       empty.className = "announcement-item";
-      empty.textContent = "\u6682\u65e0\u516c\u544a";
+      empty.textContent = "No announcements";
       announcementList.appendChild(empty);
       return;
     }
+
     const history = [...announcements].reverse();
     for (const entry of history) {
       const item = document.createElement("div");
       item.className = "announcement-item";
-      const sideMatch = entry.match(/^\[回合\d+P([12]):/);
-      if (sideMatch?.[1] === "1") {
+      if (entry.includes("blue") || entry.includes("Blue") || entry.includes("\u84dd\u65b9")) {
         item.classList.add("announcement-blue");
-      } else if (sideMatch?.[1] === "2") {
+      } else if (entry.includes("red") || entry.includes("Red") || entry.includes("\u7ea2\u65b9")) {
         item.classList.add("announcement-red");
       }
       item.textContent = entry;
       announcementList.appendChild(item);
     }
+  }
+
+  function getBpOptionLabel(optionId: BpBanOptionId | null): string {
+    if (!optionId) {
+      return "Unconfirmed";
+    }
+    if (optionId === "none") {
+      return "Empty Ban";
+    }
+    return getMechName(optionId);
+  }
+
+  function renderBpTurn(payload: BpRenderPayload): void {
+    const turn = getBpTurn(payload.bp);
+    turnBlue.classList.toggle("turn-active", Boolean(turn && turn.side === "blue"));
+    turnRed.classList.toggle("turn-active", Boolean(turn && turn.side === "red"));
+    turnCenter.textContent = `BP | ${getBpPhaseLabel(payload.bp)}`;
+  }
+
+  function renderBpStatus(payload: BpRenderPayload): void {
+    const turn = getBpTurn(payload.bp);
+    statusTitle.textContent = "BP Status";
+    statusHp.textContent = `Local Side: ${getSideLabel(payload.localSide)}`;
+    statusSpirit.textContent = `Phase: ${getBpPhaseLabel(payload.bp)}`;
+    statusAtk.textContent = `Active Side: ${turn ? getSideLabel(turn.side) : "None"}`;
+    statusCoord.textContent = `Enemy Ban On You: ${getBpOptionLabel(getBanAgainst(payload.bp, payload.localSide))}`;
+    statusGold.textContent = `Your Current Selection: ${getBpOptionLabel(payload.selectedOption)}`;
+  }
+
+  function renderBpAnnouncement(payload: BpRenderPayload): void {
+    const local = payload.localSide;
+    const enemy = oppositeSide(local);
+    const localState = payload.bp.sides[local];
+    const enemyState = payload.bp.sides[enemy];
+    const rows: Array<{ side: Side; text: string }> = [
+      { side: local, text: `Your Ban (to enemy): ${getBpOptionLabel(localState.ban)}` },
+      { side: local, text: `Your Pick: ${getBpOptionLabel(localState.pick)}` },
+      { side: enemy, text: `Enemy Ban (to you): ${getBpOptionLabel(enemyState.ban)}` },
+      { side: enemy, text: `Enemy Pick: ${getBpOptionLabel(enemyState.pick)}` },
+    ];
+
+    announcementList.innerHTML = "";
+    for (const row of rows) {
+      const item = document.createElement("div");
+      item.className = "announcement-item";
+      item.classList.add(row.side === "blue" ? "announcement-blue" : "announcement-red");
+      item.textContent = row.text;
+      announcementList.appendChild(item);
+    }
+  }
+
+  function renderBpSkillState(payload: BpRenderPayload): void {
+    hideUnlockPopup();
+    hideTooltip();
+    spiritPopup.style.display = "none";
+    skillLeft.style.display = "none";
+    bpSkillSection.style.display = "flex";
+
+    let mechId: MechId | null = null;
+    if (payload.selectedOption && payload.selectedOption !== "none") {
+      mechId = payload.selectedOption;
+    }
+
+    bpSkillTitle.textContent = mechId ? `${getMechName(mechId)} Skills` : "Mech Skills";
+    for (const roleSkillId of ["role1", "role2", "role3", "role4"] as RoleSkillId[]) {
+      const item = bpSkillItems.get(roleSkillId);
+      if (!item) {
+        continue;
+      }
+      if (!mechId) {
+        item.textContent = `${ROLE_SLOT_LABELS[roleSkillId]}: Select a mech`;
+        item.classList.add("bp-skill-empty");
+        continue;
+      }
+      const roleSkill = getRoleSkillDefinition(mechId, roleSkillId);
+      item.textContent = roleSkill.name
+        ? `${ROLE_SLOT_LABELS[roleSkillId]}: ${roleSkill.name}`
+        : `${ROLE_SLOT_LABELS[roleSkillId]}: TBD`;
+      item.classList.toggle("bp-skill-empty", !roleSkill.implemented);
+    }
+
+    const turn = getBpTurn(payload.bp);
+    if (!turn) {
+      endTurnButton.textContent = "BP Done";
+      endTurnButton.disabled = true;
+      return;
+    }
+
+    if (turn.side !== payload.localSide) {
+      endTurnButton.textContent = `Waiting for ${getSideLabel(turn.side)}`;
+      endTurnButton.disabled = true;
+      return;
+    }
+
+    const selectedOption = payload.selectedOption;
+    const hasSelection = Boolean(selectedOption);
+    const validSelection =
+      Boolean(selectedOption) &&
+      (turn.action === "ban"
+        ? true
+        : selectedOption !== "none" && isBpOptionEnabled(payload.bp, payload.localSide, selectedOption));
+
+    endTurnButton.textContent = turn.action === "ban" ? "Confirm Ban" : "Confirm Pick";
+    endTurnButton.disabled = !payload.connected || !hasSelection || !validSelection;
+  }
+
+  function drawBpBoard(payload: BpRenderPayload): void {
+    const canvasSize = updateCanvasSize();
+    const ctx = boardCanvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+
+    const { dpr, width: w, height: h } = canvasSize;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, w, h);
+
+    boardMetrics = null;
+    bpCardLayouts.length = 0;
+
+    const cols = 3;
+    const rows = 2;
+    const paddingX = Math.max(12, Math.floor(w * 0.035));
+    const paddingY = Math.max(12, Math.floor(h * 0.06));
+    const gapX = Math.max(10, Math.floor(w * 0.02));
+    const gapY = Math.max(10, Math.floor(h * 0.03));
+    const cardW = Math.floor((w - paddingX * 2 - gapX * (cols - 1)) / cols);
+    const cardH = Math.floor((h - paddingY * 2 - gapY * (rows - 1)) / rows);
+
+    const turn = getBpTurn(payload.bp);
+    const banAgainstLocal = getBanAgainst(payload.bp, payload.localSide);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    BP_OPTIONS.forEach((option, index) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const left = paddingX + col * (cardW + gapX);
+      const top = paddingY + row * (cardH + gapY);
+      const enabled = payload.connected && isBpOptionEnabled(payload.bp, payload.localSide, option.id);
+      const selected = payload.selectedOption === option.id;
+      const hovered = hoverBpOption === option.id;
+      const bannedForLocalPick = turn?.action === "pick" && banAgainstLocal === option.id;
+
+      bpCardLayouts.push({ id: option.id, left, top, width: cardW, height: cardH });
+
+      ctx.fillStyle = enabled ? "#050505" : "#111";
+      ctx.fillRect(left, top, cardW, cardH);
+
+      const titleH = Math.max(22, Math.floor(cardH * 0.18));
+      const imagePad = Math.max(8, Math.floor(cardW * 0.08));
+      const imageW = cardW - imagePad * 2;
+      const imageH = cardH - titleH - imagePad * 2;
+      const imageX = left + imagePad;
+      const imageY = top + imagePad;
+
+      if (option.id !== "none") {
+        const avatar = assets.chars[option.id];
+        ctx.drawImage(avatar, imageX, imageY, imageW, imageH);
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.strokeStyle = "rgba(255,255,255,0.7)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 3]);
+        ctx.strokeRect(imageX + 0.5, imageY + 0.5, imageW - 1, imageH - 1);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#fff";
+        ctx.font = `${Math.max(12, Math.floor(cardW * 0.12))}px 'zpix', monospace`;
+        ctx.fillText("Empty Ban", left + cardW * 0.5, imageY + imageH * 0.5);
+      }
+
+      if (bannedForLocalPick && option.id !== "none") {
+        ctx.fillStyle = "rgba(255, 70, 70, 0.28)";
+        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.fillStyle = "#ff8f8f";
+        ctx.font = `${Math.max(10, Math.floor(cardW * 0.09))}px 'zpix', monospace`;
+        ctx.fillText("Banned For You", left + cardW * 0.5, imageY + imageH * 0.5);
+      } else if (!enabled && turn?.side === payload.localSide) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.fillRect(imageX, imageY, imageW, imageH);
+      }
+
+      ctx.fillStyle = "rgba(0,0,0,0.68)";
+      ctx.fillRect(left, top + cardH - titleH, cardW, titleH);
+      ctx.fillStyle = "#fff";
+      ctx.font = `${Math.max(11, Math.floor(cardW * 0.095))}px 'zpix', monospace`;
+      ctx.fillText(option.name, left + cardW * 0.5, top + cardH - titleH * 0.5);
+
+      ctx.strokeStyle = selected ? "#58a8ff" : hovered ? "#9ec8ff" : "#fff";
+      ctx.lineWidth = selected ? 3 : 2;
+      ctx.strokeRect(left + 0.5, top + 0.5, cardW - 1, cardH - 1);
+    });
+  }
+
+  function getBpOptionFromClient(clientX: number, clientY: number): BpBanOptionId | null {
+    if (bpCardLayouts.length === 0) {
+      return null;
+    }
+    const rect = boardCanvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    for (const layout of bpCardLayouts) {
+      const inside =
+        x >= layout.left &&
+        x < layout.left + layout.width &&
+        y >= layout.top &&
+        y < layout.top + layout.height;
+      if (inside) {
+        return layout.id;
+      }
+    }
+    return null;
   }
 
   function shouldContinueAnimating(payload: RenderPayload | null): boolean {
@@ -1075,7 +1447,10 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   }
 
   function render(payload: RenderPayload): void {
+    currentMode = "battle";
     lastPayload = payload;
+    lastBpPayload = null;
+    hoverBpOption = null;
     drawBoard(payload);
     renderSkillState(payload);
     renderTurn(payload);
@@ -1086,9 +1461,19 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     }
   }
 
+  function renderBp(payload: BpRenderPayload): void {
+    currentMode = "bp";
+    lastBpPayload = payload;
+    drawBpBoard(payload);
+    renderBpSkillState(payload);
+    renderBpTurn(payload);
+    renderBpStatus(payload);
+    renderBpAnnouncement(payload);
+  }
+
   function tickAnimation(): void {
     animationFrame = 0;
-    if (!lastPayload) {
+    if (currentMode !== "battle" || !lastPayload) {
       return;
     }
 
@@ -1120,6 +1505,10 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   }
 
   window.addEventListener("resize", () => {
+    if (currentMode === "bp" && lastBpPayload) {
+      renderBp(lastBpPayload);
+      return;
+    }
     if (lastPayload) {
       render(lastPayload);
     }
@@ -1130,6 +1519,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       handlers = nextHandlers;
     },
     render,
+    renderBp,
     playAttackAnimation(actor: Side, from: Coord, to: Coord): void {
       attackAnimation = {
         actor,

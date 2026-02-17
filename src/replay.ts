@@ -7,6 +7,7 @@ import {
   CommandEnvelope,
   Coord,
   GameState,
+  MechId,
   RoleSkillId,
   Side,
   coordsEqual,
@@ -20,6 +21,8 @@ type PackedStats = [number, number, number, number, number, number, number];
 interface ReplayInitialStats {
   blue: PackedStats;
   red: PackedStats;
+  blueMech: MechId;
+  redMech: MechId;
 }
 
 interface ParsedReplay {
@@ -79,6 +82,36 @@ function skillToCode(skill: RoleSkillId): string {
       return "4";
     default:
       return "0";
+  }
+}
+
+function mechToCode(mech: MechId): string {
+  switch (mech) {
+    case "reimu":
+      return "r";
+    case "marisa":
+      return "m";
+    case "koishi":
+      return "k";
+    case "aya":
+      return "a";
+    default:
+      return "r";
+  }
+}
+
+function codeToMech(code: string): MechId {
+  switch (code) {
+    case "r":
+      return "reimu";
+    case "m":
+      return "marisa";
+    case "k":
+      return "koishi";
+    case "a":
+      return "aya";
+    default:
+      return "reimu";
   }
 }
 
@@ -230,18 +263,23 @@ function unpackStats(base: GameState, side: Side, packed: PackedStats): void {
 
 function encodeInitialStats(state: GameState): string {
   const values = [...packStats(state, "blue"), ...packStats(state, "red")];
-  return `I,${values.join(",")}`;
+  return `I,${values.join(",")},${mechToCode(state.players.blue.mechId)},${mechToCode(state.players.red.mechId)}`;
 }
 
 function decodeInitialStats(line: string): ReplayInitialStats {
   const parts = line.split(",");
-  if (parts.length !== 15 || parts[0] !== "I") {
+  if (parts[0] !== "I") {
     throw new Error("invalid replay initial stats line");
   }
-  const values = parts.slice(1).map((value) => parseIntStrict(value, "initial stat"));
+  if (parts.length !== 15 && parts.length !== 17) {
+    throw new Error("invalid replay initial stats line");
+  }
+  const values = parts.slice(1, 15).map((value) => parseIntStrict(value, "initial stat"));
   const blue = values.slice(0, 7) as PackedStats;
   const red = values.slice(7, 14) as PackedStats;
-  return { blue, red };
+  const blueMech = parts.length >= 17 ? codeToMech(parts[15]) : "reimu";
+  const redMech = parts.length >= 17 ? codeToMech(parts[16]) : "reimu";
+  return { blue, red, blueMech, redMech };
 }
 
 export function serializeReplay(envelopes: CommandEnvelope[], initialState: GameState): string {
@@ -286,7 +324,9 @@ export function buildReplayFilename(date = new Date()): string {
 }
 
 function buildReplayStates(parsed: ParsedReplay): GameState[] {
-  const first = createInitialState();
+  const first = parsed.initialStats
+    ? createInitialState({ blue: parsed.initialStats.blueMech, red: parsed.initialStats.redMech })
+    : createInitialState();
   if (parsed.initialStats) {
     unpackStats(first, "blue", parsed.initialStats.blue);
     unpackStats(first, "red", parsed.initialStats.red);
@@ -296,7 +336,7 @@ function buildReplayStates(parsed: ParsedReplay): GameState[] {
   for (const envelope of parsed.commands) {
     const prev = states[states.length - 1];
     const applied = applyCommandEnvelope(prev, envelope);
-    if (!applied.ok) {
+    if (applied.ok === false) {
       throw new Error(`seq=${envelope.seq} replay apply failed: ${applied.reason}`);
     }
     states.push(applied.state);
@@ -348,7 +388,7 @@ function renderPerspectiveBoard(state: GameState, side: Side): string {
     lines.push(row);
   }
 
-  lines.push("图例: 1=P1 2=P2 #=墙 ,=草 ?=战争迷雾");
+  lines.push("Legend: 1=P1 2=P2 #=Wall ,=Grass ?=Fog");
   return lines.join("\n");
 }
 
@@ -357,29 +397,30 @@ function actionText(command: Command): string {
     const coord = keyToCoord(key);
     return coord ? `${COL_LABELS[coord.x]}:${coord.y + 1}` : key;
   };
+
   switch (command.type) {
     case "move":
-      return `移动 -> ${toDisplay(command.to)}`;
+      return `Move -> ${toDisplay(command.to)}`;
     case "build":
-      return `建造 -> ${toDisplay(command.to)} (灵力${command.spirit})`;
+      return `Build -> ${toDisplay(command.to)} (spirit ${command.spirit})`;
     case "scout":
-      return "侦察";
+      return "Scout";
     case "attack":
-      return `普攻 -> ${toDisplay(command.to)}`;
+      return `Attack -> ${toDisplay(command.to)}`;
     case "needle":
-      return `封魔针 -> ${toDisplay(command.to)} (灵力${command.spirit})`;
+      return `Needle -> ${toDisplay(command.to)} (spirit ${command.spirit})`;
     case "amulet":
-      return `符札 -> ${toDisplay(command.to)}`;
+      return `Amulet -> ${toDisplay(command.to)}`;
     case "orb":
-      return `阴阳玉 (灵力${command.spirit})`;
+      return `Orb (spirit ${command.spirit})`;
     case "blink":
-      return `闪现 -> ${toDisplay(command.to)} (灵力${command.spirit})`;
+      return `Blink -> ${toDisplay(command.to)} (spirit ${command.spirit})`;
     case "unlockSkill":
-      return `解锁${command.skill}`;
+      return `Unlock ${command.skill}`;
     case "endTurn":
-      return "空过";
+      return "Pass";
     default:
-      return command.type;
+      return "";
   }
 }
 
@@ -411,12 +452,12 @@ export function bootstrapReplayPage(appRoot: HTMLElement, debugRoot: HTMLElement
 
   const prevBtn = document.createElement("button");
   prevBtn.className = "debug-btn";
-  prevBtn.textContent = "上一步";
+  prevBtn.textContent = "Prev";
   controls.appendChild(prevBtn);
 
   const nextBtn = document.createElement("button");
   nextBtn.className = "debug-btn";
-  nextBtn.textContent = "下一步";
+  nextBtn.textContent = "Next";
   controls.appendChild(nextBtn);
 
   const stepRange = document.createElement("input");
@@ -429,12 +470,12 @@ export function bootstrapReplayPage(appRoot: HTMLElement, debugRoot: HTMLElement
 
   const stepLabel = document.createElement("span");
   stepLabel.className = "replay-info";
-  stepLabel.textContent = "步数 0/0";
+  stepLabel.textContent = "Step 0/0";
   toolbar.appendChild(stepLabel);
 
   const info = document.createElement("div");
   info.className = "replay-info";
-  info.textContent = "请选择 .rpy 文件";
+  info.textContent = "Please choose a .rpy file";
   shell.appendChild(info);
 
   const panels = document.createElement("div");
@@ -449,7 +490,7 @@ export function bootstrapReplayPage(appRoot: HTMLElement, debugRoot: HTMLElement
   blueTitle.className = "panel-title";
   blueTitle.style.borderBottom = "none";
   blueTitle.style.padding = "0 0 6px 0";
-  blueTitle.textContent = "P1 蓝方视角";
+  blueTitle.textContent = "P1 Blue Perspective";
   bluePanel.appendChild(blueTitle);
 
   const blueBoard = document.createElement("pre");
@@ -464,7 +505,7 @@ export function bootstrapReplayPage(appRoot: HTMLElement, debugRoot: HTMLElement
   redTitle.className = "panel-title";
   redTitle.style.borderBottom = "none";
   redTitle.style.padding = "0 0 6px 0";
-  redTitle.textContent = "P2 红方视角";
+  redTitle.textContent = "P2 Red Perspective";
   redPanel.appendChild(redTitle);
 
   const redBoard = document.createElement("pre");
@@ -477,7 +518,7 @@ export function bootstrapReplayPage(appRoot: HTMLElement, debugRoot: HTMLElement
 
   const announceTitle = document.createElement("h3");
   announceTitle.className = "panel-title";
-  announceTitle.textContent = "公告记录";
+  announceTitle.textContent = "Announcement Log";
   announcePanel.appendChild(announceTitle);
 
   const announceList = document.createElement("div");
@@ -503,17 +544,17 @@ export function bootstrapReplayPage(appRoot: HTMLElement, debugRoot: HTMLElement
     }
 
     const state = states[step];
-    stepLabel.textContent = `步数 ${step}/${Math.max(0, states.length - 1)}`;
+    stepLabel.textContent = `Step ${step}/${Math.max(0, states.length - 1)}`;
     stepRange.max = String(Math.max(0, states.length - 1));
     stepRange.value = String(step);
     prevBtn.disabled = step <= 0;
     nextBtn.disabled = step >= states.length - 1;
 
-    const commandText = step > 0 ? actionText(commands[step - 1].command) : "初始局面";
+    const commandText = step > 0 ? actionText(commands[step - 1].command) : "Initial";
     info.textContent =
-      `seq=${state.seq} | 回合=${state.turn.round} | 当前=${state.turn.side === "blue" ? "P1" : "P2"} | ` +
-      `操作=${commandText}` +
-      (state.winner ? ` | 赢家=${state.winner === "blue" ? "P1 蓝方" : "P2 红方"}` : "");
+      `seq=${state.seq} | round=${state.turn.round} | side=${state.turn.side === "blue" ? "P1" : "P2"} | ` +
+      `action=${commandText}` +
+      (state.winner ? ` | winner=${state.winner === "blue" ? "P1 Blue" : "P2 Red"}` : "");
 
     blueBoard.textContent = renderPerspectiveBoard(state, "blue");
     redBoard.textContent = renderPerspectiveBoard(state, "red");
@@ -523,13 +564,13 @@ export function bootstrapReplayPage(appRoot: HTMLElement, debugRoot: HTMLElement
     if (history.length === 0) {
       const empty = document.createElement("div");
       empty.className = "announcement-item";
-      empty.textContent = "暂无公告";
+      empty.textContent = "No announcements";
       announceList.appendChild(empty);
     } else {
       for (const entry of history) {
         const item = document.createElement("div");
         item.className = "announcement-item";
-        const sideMatch = entry.match(/^\[回合\d+P([12]):/);
+        const sideMatch = entry.match(/^\[闂備焦鎮堕崕鎶藉磻濞戙垹绠栫€广儳鐘?P([12]):/);
         if (sideMatch?.[1] === "1") {
           item.classList.add("announcement-blue");
         } else if (sideMatch?.[1] === "2") {
@@ -556,7 +597,7 @@ export function bootstrapReplayPage(appRoot: HTMLElement, debugRoot: HTMLElement
       render();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      info.textContent = `回放文件解析失败: ${message}`;
+      info.textContent = `闂備焦鎮堕崕鎶藉磻閻愬搫妫樺〒姘ｅ亾鐎殿噮鍓熷畷鍫曟晜缁涘浠洪梺鑽ゅ枑閻熻京寰婃ィ鍐╁€甸柤鎭掑劚缁剁偤寮堕崼顐函鐞? ${message}`;
       commands = [];
       states = [createInitialState()];
       step = 0;

@@ -691,6 +691,108 @@ function isRoleSkillId(skill) {
   return skill === "role1" || skill === "role2" || skill === "role3" || skill === "role4";
 }
 
+// src/mech.ts
+var DEFAULT_MECH_ID = "reimu";
+var MECH_IDS = ["reimu", "marisa", "koishi", "aya"];
+var NO_BAN_OPTION_ID = "none";
+function makeSkill(id, name, description, implemented) {
+  return {
+    id,
+    name,
+    description,
+    implemented
+  };
+}
+function buildEmptyRoleSkills() {
+  return {
+    role1: makeSkill("role1", "", "", false),
+    role2: makeSkill("role2", "", "", false),
+    role3: makeSkill("role3", "", "", false),
+    role4: makeSkill("role4", "", "", false)
+  };
+}
+var EMPTY_ROLE_SKILLS = buildEmptyRoleSkills();
+var MECH_DEFINITIONS = {
+  reimu: {
+    id: "reimu",
+    name: "Reimu",
+    avatarSrc: "./assets/char/reimu.png",
+    roleSkills: {
+      role1: makeSkill(
+        "role1",
+        "Persuasion Needle",
+        "Spend N spirit to fire N needles in a line. The first hit unit in each needle path takes 1 damage.",
+        true
+      ),
+      role2: makeSkill(
+        "role2",
+        "Homing Amulet",
+        "Spend 1 spirit to deal piercing 1 damage to all units on the path. Refund 1 spirit if enemy unit is hit.",
+        true
+      ),
+      role3: makeSkill(
+        "role3",
+        "Yin-Yang Orb",
+        "Spend N spirit to gain vision radius N for N turns.",
+        true
+      ),
+      role4: makeSkill(
+        "role4",
+        "G Free",
+        "Spend N spirit to blink to an empty tile within range N. This is not a move action.",
+        true
+      )
+    }
+  },
+  marisa: {
+    id: "marisa",
+    name: "Marisa",
+    avatarSrc: "./assets/char/marisa.png",
+    roleSkills: buildEmptyRoleSkills()
+  },
+  koishi: {
+    id: "koishi",
+    name: "Koishi",
+    avatarSrc: "./assets/char/koishi.png",
+    roleSkills: buildEmptyRoleSkills()
+  },
+  aya: {
+    id: "aya",
+    name: "Aya",
+    avatarSrc: "./assets/char/aya.png",
+    roleSkills: buildEmptyRoleSkills()
+  }
+};
+var BP_OPTIONS = [
+  ...MECH_IDS.map((id) => {
+    const mech = MECH_DEFINITIONS[id];
+    return {
+      id,
+      name: mech.name,
+      avatarSrc: mech.avatarSrc,
+      isEmptyBan: false
+    };
+  }),
+  {
+    id: NO_BAN_OPTION_ID,
+    name: "Empty Ban",
+    avatarSrc: null,
+    isEmptyBan: true
+  }
+];
+function getMechDefinition(mechId) {
+  return MECH_DEFINITIONS[mechId];
+}
+function getMechName(mechId) {
+  return getMechDefinition(mechId).name;
+}
+function isRoleSkillImplemented(mechId, skill) {
+  return Boolean(MECH_DEFINITIONS[mechId].roleSkills[skill]?.implemented);
+}
+function getRoleSkillDefinition(mechId, skill) {
+  return MECH_DEFINITIONS[mechId].roleSkills[skill] ?? EMPTY_ROLE_SKILLS[skill];
+}
+
 // src/game.ts
 var BLUE_SPAWN = { x: 1, y: 4 };
 var RED_SPAWN = { x: 10, y: 4 };
@@ -724,10 +826,11 @@ function getBaseTerrain(coord) {
   }
   return "ground";
 }
-function createUnit(side, pos, initialSpirit) {
+function createUnit(side, pos, initialSpirit, mechId) {
   return {
     id: getPlayerIdBySide(side),
     side,
+    mechId,
     pos: { ...pos },
     stats: {
       hp: 10,
@@ -783,7 +886,15 @@ function cloneWalls(walls) {
   }
   return next;
 }
-function createInitialState() {
+function canUseRoleSkillByMech(state, side, skill) {
+  return isRoleSkillImplemented(state.players[side].mechId, skill);
+}
+function canUseRoleSkillByState(state, side, skill) {
+  return canUseRoleSkillByMech(state, side, skill);
+}
+function createInitialState(mechBySide) {
+  const blueMech = mechBySide?.blue ?? DEFAULT_MECH_ID;
+  const redMech = mechBySide?.red ?? DEFAULT_MECH_ID;
   return {
     seq: 0,
     turn: {
@@ -793,8 +904,8 @@ function createInitialState() {
       pendingAnnouncement: null
     },
     players: {
-      blue: createUnit("blue", BLUE_SPAWN, 0),
-      red: createUnit("red", RED_SPAWN, 1)
+      blue: createUnit("blue", BLUE_SPAWN, 0, blueMech),
+      red: createUnit("red", RED_SPAWN, 1, redMech)
     },
     walls: createWalls(),
     announcements: [],
@@ -1047,7 +1158,7 @@ function applyEnemyDamage(players, targetSide, amount, damageAnnouncements) {
   }
   const hpAfter = Math.max(0, target.stats.hp - amount);
   target.stats.hp = hpAfter;
-  damageAnnouncements.push(`${getSideLabel(targetSide)}\u53D7\u5230\u4E86${amount}\u70B9\u4F24\u5BB3`);
+  damageAnnouncements.push(`\u673A\u4F53\u53D7\u4F24\uFF1A${getSideLabel(targetSide)}\u53D7\u5230\u4E86${amount}\u70B9\u4F24\u5BB3`);
   return true;
 }
 function applyWallDamage(players, walls, actor, coord, amount) {
@@ -1100,8 +1211,8 @@ function appendAnnouncements(base, additions) {
   return merged.slice(merged.length - MAX_ANNOUNCEMENTS);
 }
 function formatTurnAnnouncement(round, side, text) {
-  const playerNo = side === "blue" ? 1 : 2;
-  return `[\u56DE\u5408${round}P${playerNo}: ${text}]`;
+  void side;
+  return `\u56DE\u5408${round}: ${text}`;
 }
 function appendTurnAnnouncements(base, round, side, additions) {
   if (additions.length === 0) {
@@ -1214,6 +1325,9 @@ function getLegalBlinkTargets(state, actor, spiritSpend) {
   if (!state.players[actor].skills.role4) {
     return [];
   }
+  if (!canUseRoleSkillByMech(state, actor, "role4")) {
+    return [];
+  }
   const self = state.players[actor];
   const result = [];
   for (let y = 0; y < BOARD_HEIGHT; y += 1) {
@@ -1266,7 +1380,7 @@ function applyMove(state, command) {
     ...state,
     players: nextPlayers,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u79FB\u52A8\u5230${formatCoordDisplay(target)}`
+      `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u79FB\u52A8`
     ]),
     turn: {
       ...state.turn,
@@ -1312,7 +1426,7 @@ function applyBuild(state, command) {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u5728${formatCoordDisplay(target)}\u5EFA\u9020\u4E86\u751F\u547D\u4E0A\u9650\u4E3A${command.spirit}\u7684\u5899\u4F53`
+      `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u5EFA\u9020`
     ]),
     turn: {
       ...state.turn,
@@ -1335,7 +1449,7 @@ function applyScout(state, command) {
     return { ok: false, reason: "not enough spirit" };
   }
   const enemy = state.players[oppositeSide(actor)];
-  const scoutResult = isGrass(enemy.pos) ? "\u76EE\u6807\u4F4D\u4E8E\u8349\u4E1B\u4E2D\uFF0C\u65E0\u6CD5\u88AB\u4FA6\u5BDF" : `\u76EE\u6807\u5750\u6807\u4E3A${formatCoordDisplay(enemy.pos)}`;
+  const scoutResult = isGrass(enemy.pos) ? "/\u65E0\u6CD5\u88AB\u4FA6\u5BDF" : `${getSideLabel(oppositeSide(actor))}\u7684\u5750\u6807\u4E3A${formatCoordDisplay(enemy.pos)}\u3002`;
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= 1;
   const nextState = {
@@ -1390,7 +1504,7 @@ function applyAttack(state, command) {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u5BF9${formatCoordDisplay(target)}\u53D1\u52A8\u4E86\u666E\u901A\u653B\u51FB`,
+      `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u666E\u901A\u653B\u51FB`,
       ...damageAnnouncements
     ]),
     turn: {
@@ -1411,6 +1525,9 @@ function applyUnlockSkill(state, command) {
     return { ok: false, reason: "cannot unlock now" };
   }
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, command.skill)) {
+    return { ok: false, reason: "role skill not implemented for current mech" };
+  }
   if (self.skills[command.skill]) {
     return { ok: false, reason: "skill already unlocked" };
   }
@@ -1437,6 +1554,9 @@ function applyNeedle(state, command) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, "role1")) {
+    return { ok: false, reason: "role1 not implemented for current mech" };
+  }
   if (!self.skills.role1) {
     return { ok: false, reason: "skill role1 not unlocked" };
   }
@@ -1517,7 +1637,7 @@ function applyNeedle(state, command) {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u671D${formatCoordDisplay(target)}\u53D1\u5C04\u4E86\u5C01\u9B54\u9488`,
+      "\u7075\u68A6\u53D1\u5C04\u4E86\u5C01\u9B54\u9488",
       ...damageAnnouncements
     ]),
     turn: {
@@ -1545,6 +1665,9 @@ function applyAmulet(state, command) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, "role2")) {
+    return { ok: false, reason: "role2 not implemented for current mech" };
+  }
   if (!self.skills.role2) {
     return { ok: false, reason: "skill role2 not unlocked" };
   }
@@ -1592,7 +1715,7 @@ function applyAmulet(state, command) {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u671D${formatCoordDisplay(target)}\u53D1\u5C04\u4E86\u7B26\u672D`,
+      "\u7075\u68A6\u53D1\u5C04\u4E86\u7B26\u672D",
       ...damageAnnouncements
     ]),
     turn: {
@@ -1628,6 +1751,9 @@ function applyOrb(state, command) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, "role3")) {
+    return { ok: false, reason: "role3 not implemented for current mech" };
+  }
   if (!self.skills.role3) {
     return { ok: false, reason: "skill role3 not unlocked" };
   }
@@ -1647,7 +1773,7 @@ function applyOrb(state, command) {
       ...state,
       players: nextPlayers,
       announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-        `${getSideLabel(actor)}\u83B7\u5F97\u4E86\u534A\u5F84\u4E3A${command.spirit}\u7684\u89C6\u91CE`
+        `\u7075\u68A6\u83B7\u5F97\u4E86\u534A\u5F84\u4E3A${command.spirit}\u7684\u89C6\u91CE`
       ]),
       turn: {
         ...state.turn,
@@ -1666,6 +1792,9 @@ function applyBlink(state, command) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, "role4")) {
+    return { ok: false, reason: "role4 not implemented for current mech" };
+  }
   if (!self.skills.role4) {
     return { ok: false, reason: "skill role4 not unlocked" };
   }
@@ -1692,7 +1821,7 @@ function applyBlink(state, command) {
       ...state,
       players: nextPlayers,
       announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-        `${getSideLabel(actor)}\u95EA\u73B0\u5230\u4E86${formatCoordDisplay(target)}`
+        `\u7075\u68A6\u95EA\u73B0\u5230\u4E86\u534A\u5F84\u4E3A${command.spirit}\u5185\u7684\u4E00\u683C`
       ]),
       turn: {
         ...state.turn,
@@ -2075,6 +2204,130 @@ ${logBox.textContent}`;
   };
 }
 
+// src/bp.ts
+function createInitialBpState() {
+  return {
+    phase: "blueBan",
+    sides: {
+      blue: { ban: null, pick: null },
+      red: { ban: null, pick: null }
+    }
+  };
+}
+function isBpDone(state) {
+  return state.phase === "done";
+}
+function getBpTurn(state) {
+  switch (state.phase) {
+    case "blueBan":
+      return { side: "blue", action: "ban" };
+    case "redBan":
+      return { side: "red", action: "ban" };
+    case "redPick":
+      return { side: "red", action: "pick" };
+    case "bluePick":
+      return { side: "blue", action: "pick" };
+    case "done":
+      return null;
+    default:
+      return null;
+  }
+}
+function getBpPhaseLabel(state) {
+  switch (state.phase) {
+    case "blueBan":
+      return "Blue Ban";
+    case "redBan":
+      return "Red Ban";
+    case "redPick":
+      return "Red Pick";
+    case "bluePick":
+      return "Blue Pick";
+    case "done":
+      return "BP Done";
+    default:
+      return "BP";
+  }
+}
+function getBanAgainst(state, side) {
+  return state.sides[oppositeSide(side)].ban;
+}
+function canPickMech(state, side, mechId) {
+  const banned = getBanAgainst(state, side);
+  return banned !== mechId;
+}
+function isBpOptionEnabled(state, side, optionId) {
+  const turn = getBpTurn(state);
+  if (!turn || turn.side !== side) {
+    return false;
+  }
+  if (turn.action === "ban") {
+    return true;
+  }
+  if (optionId === "none") {
+    return false;
+  }
+  return canPickMech(state, side, optionId);
+}
+function getNextPhase(phase) {
+  switch (phase) {
+    case "blueBan":
+      return "redBan";
+    case "redBan":
+      return "redPick";
+    case "redPick":
+      return "bluePick";
+    case "bluePick":
+      return "done";
+    case "done":
+      return "done";
+    default:
+      return "done";
+  }
+}
+function applyBpAction(state, action) {
+  const turn = getBpTurn(state);
+  if (!turn) {
+    return { ok: false, reason: "bp already completed" };
+  }
+  if (action.actor !== turn.side) {
+    return { ok: false, reason: "not this side's bp turn" };
+  }
+  if (action.action !== turn.action) {
+    return { ok: false, reason: "invalid bp action type for current phase" };
+  }
+  if (action.action === "pick") {
+    if (action.mechId === "none") {
+      return { ok: false, reason: "pick cannot be empty ban option" };
+    }
+    if (!canPickMech(state, action.actor, action.mechId)) {
+      return { ok: false, reason: "selected mech is banned for this side" };
+    }
+  }
+  const next = {
+    phase: getNextPhase(state.phase),
+    sides: {
+      blue: { ...state.sides.blue },
+      red: { ...state.sides.red }
+    }
+  };
+  if (action.action === "ban") {
+    next.sides[action.actor].ban = action.mechId;
+  } else {
+    if (action.mechId === "none") {
+      return { ok: false, reason: "pick cannot be empty ban option" };
+    }
+    next.sides[action.actor].pick = action.mechId;
+  }
+  if (next.phase === "done" && (next.sides.blue.pick === null || next.sides.red.pick === null)) {
+    return { ok: false, reason: "bp ended without both picks" };
+  }
+  return {
+    ok: true,
+    state: next
+  };
+}
+
 // src/input.ts
 function containsCoord2(list, target) {
   return list.some((item) => coordsEqual(item, target));
@@ -2146,10 +2399,10 @@ function getSkillAvailability(ctx) {
     build: hasAnyBuildTarget(ctx),
     scout: canUseScout(ctx.game, ctx.localSide),
     attack: getLegalAttackTargets(ctx.game, ctx.localSide).length > 0,
-    role1: self.skills.role1 && self.stats.spirit >= 1,
-    role2: self.skills.role2 && self.stats.spirit >= 1,
-    role3: self.skills.role3 && self.stats.spirit >= 1,
-    role4: self.skills.role4 && hasAnyBlinkTarget(ctx)
+    role1: canUseRoleSkillByState(ctx.game, ctx.localSide, "role1") && self.skills.role1 && self.stats.spirit >= 1,
+    role2: canUseRoleSkillByState(ctx.game, ctx.localSide, "role2") && self.skills.role2 && self.stats.spirit >= 1,
+    role3: canUseRoleSkillByState(ctx.game, ctx.localSide, "role3") && self.skills.role3 && self.stats.spirit >= 1,
+    role4: canUseRoleSkillByState(ctx.game, ctx.localSide, "role4") && self.skills.role4 && hasAnyBlinkTarget(ctx)
   };
 }
 function onSkillClick(state, skill, ctx) {
@@ -2170,6 +2423,9 @@ function onSkillClick(state, skill, ctx) {
     return { next: { ...nextState, activeSkill: null } };
   }
   if (isRoleSkillId(skill) && !localUnit(ctx).skills[skill]) {
+    return { next: { ...nextState, activeSkill: null } };
+  }
+  if (isRoleSkillId(skill) && !canUseRoleSkillByState(ctx.game, ctx.localSide, skill)) {
     return { next: { ...nextState, activeSkill: null } };
   }
   const bounds = getSpiritSpendBounds(skill, ctx);
@@ -6639,6 +6895,34 @@ function skillToCode(skill) {
       return "0";
   }
 }
+function mechToCode(mech) {
+  switch (mech) {
+    case "reimu":
+      return "r";
+    case "marisa":
+      return "m";
+    case "koishi":
+      return "k";
+    case "aya":
+      return "a";
+    default:
+      return "r";
+  }
+}
+function codeToMech(code) {
+  switch (code) {
+    case "r":
+      return "reimu";
+    case "m":
+      return "marisa";
+    case "k":
+      return "koishi";
+    case "a":
+      return "aya";
+    default:
+      return "reimu";
+  }
+}
 function codeToSkill(code) {
   switch (code) {
     case "1":
@@ -6777,17 +7061,22 @@ function unpackStats(base, side, packed) {
 }
 function encodeInitialStats(state) {
   const values = [...packStats(state, "blue"), ...packStats(state, "red")];
-  return `I,${values.join(",")}`;
+  return `I,${values.join(",")},${mechToCode(state.players.blue.mechId)},${mechToCode(state.players.red.mechId)}`;
 }
 function decodeInitialStats(line) {
   const parts = line.split(",");
-  if (parts.length !== 15 || parts[0] !== "I") {
+  if (parts[0] !== "I") {
     throw new Error("invalid replay initial stats line");
   }
-  const values = parts.slice(1).map((value) => parseIntStrict(value, "initial stat"));
+  if (parts.length !== 15 && parts.length !== 17) {
+    throw new Error("invalid replay initial stats line");
+  }
+  const values = parts.slice(1, 15).map((value) => parseIntStrict(value, "initial stat"));
   const blue = values.slice(0, 7);
   const red = values.slice(7, 14);
-  return { blue, red };
+  const blueMech = parts.length >= 17 ? codeToMech(parts[15]) : "reimu";
+  const redMech = parts.length >= 17 ? codeToMech(parts[16]) : "reimu";
+  return { blue, red, blueMech, redMech };
 }
 function serializeReplay(envelopes, initialState) {
   const lines = [REPLAY_MAGIC, encodeInitialStats(initialState)];
@@ -6822,7 +7111,7 @@ function buildReplayFilename(date = /* @__PURE__ */ new Date()) {
   ].join("-") + ".rpy";
 }
 function buildReplayStates(parsed) {
-  const first = createInitialState();
+  const first = parsed.initialStats ? createInitialState({ blue: parsed.initialStats.blueMech, red: parsed.initialStats.redMech }) : createInitialState();
   if (parsed.initialStats) {
     unpackStats(first, "blue", parsed.initialStats.blue);
     unpackStats(first, "red", parsed.initialStats.red);
@@ -6831,7 +7120,7 @@ function buildReplayStates(parsed) {
   for (const envelope of parsed.commands) {
     const prev = states[states.length - 1];
     const applied = applyCommandEnvelope(prev, envelope);
-    if (!applied.ok) {
+    if (applied.ok === false) {
       throw new Error(`seq=${envelope.seq} replay apply failed: ${applied.reason}`);
     }
     states.push(applied.state);
@@ -6878,7 +7167,7 @@ function renderPerspectiveBoard(state, side) {
     }
     lines.push(row);
   }
-  lines.push("\u56FE\u4F8B: 1=P1 2=P2 #=\u5899 ,=\u8349 ?=\u6218\u4E89\u8FF7\u96FE");
+  lines.push("Legend: 1=P1 2=P2 #=Wall ,=Grass ?=Fog");
   return lines.join("\n");
 }
 function actionText(command) {
@@ -6888,27 +7177,27 @@ function actionText(command) {
   };
   switch (command.type) {
     case "move":
-      return `\u79FB\u52A8 -> ${toDisplay(command.to)}`;
+      return `Move -> ${toDisplay(command.to)}`;
     case "build":
-      return `\u5EFA\u9020 -> ${toDisplay(command.to)} (\u7075\u529B${command.spirit})`;
+      return `Build -> ${toDisplay(command.to)} (spirit ${command.spirit})`;
     case "scout":
-      return "\u4FA6\u5BDF";
+      return "Scout";
     case "attack":
-      return `\u666E\u653B -> ${toDisplay(command.to)}`;
+      return `Attack -> ${toDisplay(command.to)}`;
     case "needle":
-      return `\u5C01\u9B54\u9488 -> ${toDisplay(command.to)} (\u7075\u529B${command.spirit})`;
+      return `Needle -> ${toDisplay(command.to)} (spirit ${command.spirit})`;
     case "amulet":
-      return `\u7B26\u672D -> ${toDisplay(command.to)}`;
+      return `Amulet -> ${toDisplay(command.to)}`;
     case "orb":
-      return `\u9634\u9633\u7389 (\u7075\u529B${command.spirit})`;
+      return `Orb (spirit ${command.spirit})`;
     case "blink":
-      return `\u95EA\u73B0 -> ${toDisplay(command.to)} (\u7075\u529B${command.spirit})`;
+      return `Blink -> ${toDisplay(command.to)} (spirit ${command.spirit})`;
     case "unlockSkill":
-      return `\u89E3\u9501${command.skill}`;
+      return `Unlock ${command.skill}`;
     case "endTurn":
-      return "\u7A7A\u8FC7";
+      return "Pass";
     default:
-      return command.type;
+      return "";
   }
 }
 function bootstrapReplayPage(appRoot, debugRoot) {
@@ -6933,11 +7222,11 @@ function bootstrapReplayPage(appRoot, debugRoot) {
   toolbar.appendChild(controls);
   const prevBtn = document.createElement("button");
   prevBtn.className = "debug-btn";
-  prevBtn.textContent = "\u4E0A\u4E00\u6B65";
+  prevBtn.textContent = "Prev";
   controls.appendChild(prevBtn);
   const nextBtn = document.createElement("button");
   nextBtn.className = "debug-btn";
-  nextBtn.textContent = "\u4E0B\u4E00\u6B65";
+  nextBtn.textContent = "Next";
   controls.appendChild(nextBtn);
   const stepRange = document.createElement("input");
   stepRange.type = "range";
@@ -6948,11 +7237,11 @@ function bootstrapReplayPage(appRoot, debugRoot) {
   controls.appendChild(stepRange);
   const stepLabel = document.createElement("span");
   stepLabel.className = "replay-info";
-  stepLabel.textContent = "\u6B65\u6570 0/0";
+  stepLabel.textContent = "Step 0/0";
   toolbar.appendChild(stepLabel);
   const info = document.createElement("div");
   info.className = "replay-info";
-  info.textContent = "\u8BF7\u9009\u62E9 .rpy \u6587\u4EF6";
+  info.textContent = "Please choose a .rpy file";
   shell.appendChild(info);
   const panels = document.createElement("div");
   panels.className = "replay-panels";
@@ -6964,7 +7253,7 @@ function bootstrapReplayPage(appRoot, debugRoot) {
   blueTitle.className = "panel-title";
   blueTitle.style.borderBottom = "none";
   blueTitle.style.padding = "0 0 6px 0";
-  blueTitle.textContent = "P1 \u84DD\u65B9\u89C6\u89D2";
+  blueTitle.textContent = "P1 Blue Perspective";
   bluePanel.appendChild(blueTitle);
   const blueBoard = document.createElement("pre");
   blueBoard.className = "replay-board";
@@ -6976,7 +7265,7 @@ function bootstrapReplayPage(appRoot, debugRoot) {
   redTitle.className = "panel-title";
   redTitle.style.borderBottom = "none";
   redTitle.style.padding = "0 0 6px 0";
-  redTitle.textContent = "P2 \u7EA2\u65B9\u89C6\u89D2";
+  redTitle.textContent = "P2 Red Perspective";
   redPanel.appendChild(redTitle);
   const redBoard = document.createElement("pre");
   redBoard.className = "replay-board";
@@ -6986,7 +7275,7 @@ function bootstrapReplayPage(appRoot, debugRoot) {
   shell.appendChild(announcePanel);
   const announceTitle = document.createElement("h3");
   announceTitle.className = "panel-title";
-  announceTitle.textContent = "\u516C\u544A\u8BB0\u5F55";
+  announceTitle.textContent = "Announcement Log";
   announcePanel.appendChild(announceTitle);
   const announceList = document.createElement("div");
   announceList.className = "announcement-list";
@@ -7006,13 +7295,13 @@ function bootstrapReplayPage(appRoot, debugRoot) {
       step = states.length - 1;
     }
     const state = states[step];
-    stepLabel.textContent = `\u6B65\u6570 ${step}/${Math.max(0, states.length - 1)}`;
+    stepLabel.textContent = `Step ${step}/${Math.max(0, states.length - 1)}`;
     stepRange.max = String(Math.max(0, states.length - 1));
     stepRange.value = String(step);
     prevBtn.disabled = step <= 0;
     nextBtn.disabled = step >= states.length - 1;
-    const commandText = step > 0 ? actionText(commands[step - 1].command) : "\u521D\u59CB\u5C40\u9762";
-    info.textContent = `seq=${state.seq} | \u56DE\u5408=${state.turn.round} | \u5F53\u524D=${state.turn.side === "blue" ? "P1" : "P2"} | \u64CD\u4F5C=${commandText}` + (state.winner ? ` | \u8D62\u5BB6=${state.winner === "blue" ? "P1 \u84DD\u65B9" : "P2 \u7EA2\u65B9"}` : "");
+    const commandText = step > 0 ? actionText(commands[step - 1].command) : "Initial";
+    info.textContent = `seq=${state.seq} | round=${state.turn.round} | side=${state.turn.side === "blue" ? "P1" : "P2"} | action=${commandText}` + (state.winner ? ` | winner=${state.winner === "blue" ? "P1 Blue" : "P2 Red"}` : "");
     blueBoard.textContent = renderPerspectiveBoard(state, "blue");
     redBoard.textContent = renderPerspectiveBoard(state, "red");
     announceList.innerHTML = "";
@@ -7020,13 +7309,13 @@ function bootstrapReplayPage(appRoot, debugRoot) {
     if (history.length === 0) {
       const empty = document.createElement("div");
       empty.className = "announcement-item";
-      empty.textContent = "\u6682\u65E0\u516C\u544A";
+      empty.textContent = "No announcements";
       announceList.appendChild(empty);
     } else {
       for (const entry of history) {
         const item = document.createElement("div");
         item.className = "announcement-item";
-        const sideMatch = entry.match(/^\[回合\d+P([12]):/);
+        const sideMatch = entry.match(/^\[闂備焦鎮堕崕鎶藉磻濞戙垹绠栫€广儳鐘?P([12]):/);
         if (sideMatch?.[1] === "1") {
           item.classList.add("announcement-blue");
         } else if (sideMatch?.[1] === "2") {
@@ -7051,7 +7340,7 @@ function bootstrapReplayPage(appRoot, debugRoot) {
       render();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      info.textContent = `\u56DE\u653E\u6587\u4EF6\u89E3\u6790\u5931\u8D25: ${message}`;
+      info.textContent = `\u95C2\u5099\u7126\u93AE\u5815\u5D15\u93B6\u85C9\u78FB\u95BB\u612C\u642B\u59AB\u6A3A\u3012\u59D8\uFF45\u4EBE\u940E\u6BBF\u566E\u9353\u71B7\u7577\u936B\u66DF\u665C\u7F01\u6D98\uE0C5\u6D60\u6D2A\u68BA\u947D\u3085\u6791\u95BB\u71BB\u4EAC\u5BF0\u5A43\u30A3\u9350\u2541\u20AC\u7538\u67E4\u93AD\u6391\u529A\u7F01\u5241\u5064\u5BEE\u5815\u5D3C\u9850\uE76D\u51FD\u941E? ${message}`;
       commands = [];
       states = [createInitialState()];
       step = 0;
@@ -7084,15 +7373,17 @@ var SKILLS = [
   { id: "role3", label: "", basic: false },
   { id: "role4", label: "", basic: false }
 ];
-var SKILL_TOOLTIPS = {
-  move: "\u8FDB\u884C\u4E00\u6B21\u8DDD\u79BB\u4E3A1\u76848\u5411\u79FB\u52A8\u3002\u5F53\u671D\u5411\u6B63\u4E0A\u4E0B\u5DE6\u53F3\u79FB\u52A8\u65F6\uFF0C\u4F7F\u81EA\u8EAB\u7075\u529B+1\uFF0C\u5426\u5219\u4E0D\u53D8\u3002\u65E0\u6CD5\u79FB\u52A8\u81F3\u5899\u4F53\u6216\u5176\u4ED6\u673A\u4F53\u3002",
-  build: "\u6D88\u8D39N\u7075\u529B\uFF0C\u5728\u8DDD\u79BB\u4E3AN\u7684\u8303\u56F4\u5185\u5EFA\u9020\u751F\u547D\u503C/\u751F\u547D\u503C\u4E0A\u9650\u4E3AN\u7684\u5899\u4F53\u3002\u5899\u4F53\u65E0\u6CD5\u5EFA\u9020\u5728\u4EFB\u610F\u5355\u4F4D\u4E4B\u4E0A\u3002",
-  scout: "\u6D88\u8D391\u7075\u529B\uFF0C\u7ACB\u523B\u83B7\u5F97\u5BF9\u65B9\u5750\u6807\u3002",
-  attack: "\u6D88\u8D390\u7075\u529B\uFF0C\u8FDB\u884C\u4E00\u6B21\u8DDD\u79BB\u4E3A1\u7684\u653B\u51FB\u3002",
-  role1: "\u8017N\u7075\u529B\uFF0C\u671D\u76EE\u6807\u65B9\u5411\u9010\u53D1N\u679A\u5C01\u9B54\u9488\uFF0C\u547D\u4E2D\u9996\u4E2A\u5355\u4F4D\u90201\u4F24\u5BB3\u3002",
-  role2: "\u6D88\u8D391\u7075\u529B\uFF0C\u9020\u6210\u7A7F\u900F\u4F24\u5BB3\uFF0C\u5BF9\u8DEF\u5F84\u4E0A\u6240\u6709\u5355\u4F4D\u9020\u62101\u4F24\u5BB3\uFF0C\u5BF9\u654C\u673A\u9020\u6210\u4F24\u5BB3\u540E\u8FD4\u8FD81\u7075\u529B\u3002",
-  role3: "\u8017N\u7075\u529B\uFF0C\u83B7\u5F97\u534A\u5F84N\u89C6\u91CE\uFF0C\u6301\u7EEDN\u56DE\u5408\u3002",
-  role4: "\u8017N\u7075\u529B\uFF0C\u95EA\u73B0\u81F3\u534A\u5F84N\u5185\u7A7A\u683C\uFF08\u975E\u79FB\u52A8\uFF09\u3002"
+var BASIC_SKILL_TOOLTIPS = {
+  move: "Move. Make one 8-direction step (range 1). Orthogonal move grants +1 spirit; diagonal grants none. Cannot move onto walls or units.",
+  build: "Build. Spend N spirit to create a wall with HP N / Max HP N within range N. Walls cannot be built on occupied cells.",
+  scout: "Scout. Spend 1 spirit to reveal enemy coordinate immediately.",
+  attack: "Attack. Spend 0 spirit to perform a range-1 attack."
+};
+var ROLE_SLOT_LABELS = {
+  role1: "Skill 1",
+  role2: "Skill 2",
+  role3: "Skill 3",
+  role4: "Skill 4"
 };
 var VARIABLE_SPIRIT_SKILLS = /* @__PURE__ */ new Set(["build", "role1", "role3", "role4"]);
 function loadImage(src) {
@@ -7112,12 +7403,15 @@ async function loadRoleIconSet(prefix) {
   return { normal, selected, selecting };
 }
 async function loadAssets() {
-  const [ground, grass, spawn, wall, char, needle, amulet, orbEffect, role1, role2, role3, role4] = await Promise.all([
+  const [ground, grass, spawn, wall, reimu, marisa, koishi, aya, needle, amulet, orbEffect, role1, role2, role3, role4] = await Promise.all([
     loadImage("./assets/tiles/ground.png"),
     loadImage("./assets/tiles/grass.png"),
     loadImage("./assets/tiles/spawn.png"),
     loadImage("./assets/tiles/wall.png"),
     loadImage("./assets/char/reimu.png"),
+    loadImage("./assets/char/marisa.png"),
+    loadImage("./assets/char/koishi.png"),
+    loadImage("./assets/char/aya.png"),
     loadImage("./assets/bullet/reimu/reimuneedle.png"),
     loadImage("./assets/bullet/reimu/reimuamulet.png"),
     loadImage("./assets/bullet/reimu/yinyangorb.png"),
@@ -7145,15 +7439,25 @@ async function loadAssets() {
     grass,
     spawn,
     wall,
-    char,
+    chars: {
+      reimu,
+      marisa,
+      koishi,
+      aya
+    },
     needle,
     amulet,
     orbEffect,
-    roleIcons: {
-      role1,
-      role2,
-      role3,
-      role4
+    roleIconsByMech: {
+      reimu: {
+        role1,
+        role2,
+        role3,
+        role4
+      },
+      marisa: {},
+      koishi: {},
+      aya: {}
     },
     numbers,
     numberSrc
@@ -7231,13 +7535,19 @@ async function createGameView(root) {
     onSkillClick: () => void 0,
     onUnlockSkill: () => void 0,
     onEndTurnClick: () => void 0,
-    onSpiritAdjust: () => void 0
+    onSpiritAdjust: () => void 0,
+    onBpOptionClick: () => void 0,
+    onBpConfirm: () => void 0
   };
   let lastPayload = null;
+  let lastBpPayload = null;
+  let currentMode = "battle";
   let boardMetrics = null;
+  const bpCardLayouts = [];
   let attackAnimation = null;
   let animationFrame = 0;
   let hoverCoord = null;
+  let hoverBpOption = null;
   let projectileId = 0;
   let projectileBatchId = 0;
   const projectileAnimations = [];
@@ -7296,6 +7606,24 @@ async function createGameView(root) {
   const roleSkillGrid = document.createElement("div");
   roleSkillGrid.className = "role-skill-grid";
   skillLeft.appendChild(roleSkillGrid);
+  const bpSkillSection = document.createElement("div");
+  bpSkillSection.className = "bp-skill-section";
+  bpSkillSection.style.display = "none";
+  skillLayout.appendChild(bpSkillSection);
+  const bpSkillTitle = document.createElement("div");
+  bpSkillTitle.className = "bp-skill-title";
+  bpSkillTitle.textContent = "Mech Skills";
+  bpSkillSection.appendChild(bpSkillTitle);
+  const bpSkillGrid = document.createElement("div");
+  bpSkillGrid.className = "bp-skill-grid";
+  bpSkillSection.appendChild(bpSkillGrid);
+  const bpSkillItems = /* @__PURE__ */ new Map();
+  for (const roleSkillId of ["role1", "role2", "role3", "role4"]) {
+    const item = document.createElement("div");
+    item.className = "bp-skill-item hollow-frame";
+    bpSkillGrid.appendChild(item);
+    bpSkillItems.set(roleSkillId, item);
+  }
   const skillButtons = /* @__PURE__ */ new Map();
   const roleDurationBadges = /* @__PURE__ */ new Map();
   const tooltip = document.createElement("div");
@@ -7328,8 +7656,36 @@ async function createGameView(root) {
   function hideTooltip() {
     tooltip.style.display = "none";
   }
+  function resolvePreviewMechForSkillPanel() {
+    if (currentMode === "bp") {
+      if (!lastBpPayload || !lastBpPayload.selectedOption || lastBpPayload.selectedOption === "none") {
+        return null;
+      }
+      return lastBpPayload.selectedOption;
+    }
+    if (!lastPayload) {
+      return null;
+    }
+    return lastPayload.state.players[lastPayload.localSide].mechId;
+  }
+  function getTooltipText(skill) {
+    if (skill === "move" || skill === "build" || skill === "scout" || skill === "attack") {
+      return BASIC_SKILL_TOOLTIPS[skill];
+    }
+    const mechId = resolvePreviewMechForSkillPanel();
+    if (!mechId) {
+      return "Please select a mech first.";
+    }
+    const roleSkill = getRoleSkillDefinition(mechId, skill);
+    if (!roleSkill.implemented) {
+      return roleSkill.name ? `${roleSkill.name}
+Description pending.` : "This role skill is not implemented for this mech.";
+    }
+    return roleSkill.description ? `${roleSkill.name}
+${roleSkill.description}` : roleSkill.name;
+  }
   function showTooltip(skill, anchor) {
-    const text = SKILL_TOOLTIPS[skill];
+    const text = getTooltipText(skill);
     if (!text) {
       return;
     }
@@ -7348,7 +7704,7 @@ async function createGameView(root) {
       return;
     }
     const unit = lastPayload.state.players[lastPayload.localSide];
-    const canUnlock = !lastPayload.state.winner && lastPayload.connected && lastPayload.state.turn.side === lastPayload.localSide && !unit.skills[skill] && unit.stats.gold >= 100;
+    const canUnlock = !lastPayload.state.winner && lastPayload.connected && lastPayload.state.turn.side === lastPayload.localSide && isRoleSkillImplemented(unit.mechId, skill) && !unit.skills[skill] && unit.stats.gold >= 100;
     unlockPendingSkill = skill;
     unlockText.textContent = canUnlock ? "\u4F7F\u7528100\u91D1\u5E01\u89E3\u9501\u8BE5\u6280\u80FD\uFF1F" : "\u91D1\u5E01\u4E0D\u8DB3\u6216\u5F53\u524D\u4E0D\u53EF\u89E3\u9501";
     unlockYes.disabled = !canUnlock;
@@ -7394,6 +7750,9 @@ async function createGameView(root) {
       hideTooltip();
     });
     button.addEventListener("click", () => {
+      if (currentMode !== "battle") {
+        return;
+      }
       if (!lastPayload) {
         return;
       }
@@ -7438,6 +7797,10 @@ async function createGameView(root) {
   endTurnButton.className = "end-turn-btn hollow-frame";
   endTurnButton.textContent = "\u7A7A\u8FC7";
   endTurnButton.addEventListener("click", () => {
+    if (currentMode === "bp") {
+      handlers.onBpConfirm();
+      return;
+    }
     handlers.onEndTurnClick();
   });
   skillActions.appendChild(endTurnButton);
@@ -7632,11 +7995,12 @@ async function createGameView(root) {
       const px = left + drawPos.x * tile;
       const py = top + drawPos.y * tile;
       const pad = Math.floor(tile * 0.08);
-      ctx.drawImage(assets.char, px + pad, py + pad, tile - pad * 2, tile - pad * 2);
+      const unit = payload.state.players[side];
+      const charImage = assets.chars[unit.mechId] ?? assets.chars.reimu;
+      ctx.drawImage(charImage, px + pad, py + pad, tile - pad * 2, tile - pad * 2);
       ctx.strokeStyle = side === "blue" ? "#58a8ff" : "#ff6565";
       ctx.lineWidth = Math.max(2, Math.floor(tile * 0.08));
       ctx.strokeRect(px + 2, py + 2, tile - 4, tile - 4);
-      const unit = payload.state.players[side];
       if (unit.effects.orbTurns > 0) {
         const centerX = px + tile * 0.5;
         const centerY = py + tile * 0.5;
@@ -7764,6 +8128,17 @@ async function createGameView(root) {
     };
   }
   boardCanvas.addEventListener("mousemove", (event) => {
+    if (currentMode === "bp") {
+      const nextHover2 = getBpOptionFromClient(event.clientX, event.clientY);
+      if (nextHover2 === hoverBpOption) {
+        return;
+      }
+      hoverBpOption = nextHover2;
+      if (lastBpPayload) {
+        renderBp(lastBpPayload);
+      }
+      return;
+    }
     const nextHover = getBoardCoordFromClient(event.clientX, event.clientY);
     if (coordsOrNullEqual(nextHover, hoverCoord)) {
       return;
@@ -7774,6 +8149,15 @@ async function createGameView(root) {
     }
   });
   boardCanvas.addEventListener("mouseleave", () => {
+    if (currentMode === "bp") {
+      if (hoverBpOption !== null) {
+        hoverBpOption = null;
+        if (lastBpPayload) {
+          renderBp(lastBpPayload);
+        }
+      }
+      return;
+    }
     if (!hoverCoord) {
       return;
     }
@@ -7785,6 +8169,14 @@ async function createGameView(root) {
   boardCanvas.addEventListener("click", (event) => {
     hideUnlockPopup();
     hideTooltip();
+    if (currentMode === "bp") {
+      const optionId = getBpOptionFromClient(event.clientX, event.clientY);
+      if (!optionId) {
+        return;
+      }
+      handlers.onBpOptionClick(optionId);
+      return;
+    }
     const coord = getBoardCoordFromClient(event.clientX, event.clientY);
     if (!coord) {
       return;
@@ -7794,26 +8186,39 @@ async function createGameView(root) {
   function renderSkillState(payload) {
     const availability = payload.skillAvailability;
     const self = payload.state.players[payload.localSide];
+    const mech = getMechDefinition(self.mechId);
+    skillLeft.style.display = "flex";
+    bpSkillSection.style.display = "none";
     for (const skill of SKILLS) {
-      const button = skillButtons.get(skill.id);
+      const skillId = skill.id;
+      const button = skillButtons.get(skillId);
       if (!button) {
         continue;
       }
-      const isRole = isRoleSkillId(skill.id);
-      const unlocked = !isRole || self.skills[skill.id];
-      const usable = unlocked && availability[skill.id];
+      const isRole = isRoleSkillId(skillId);
+      const roleImplemented = isRole ? isRoleSkillImplemented(self.mechId, skillId) : true;
+      const unlocked = isRole ? roleImplemented && self.skills[skillId] : true;
+      const usable = unlocked && availability[skillId];
       button.classList.toggle("skill-usable", usable);
       button.classList.toggle("skill-disabled", !usable);
-      button.classList.toggle("skill-selected", payload.input.activeSkill === skill.id);
-      button.classList.toggle("skill-quickcast", payload.input.quickCast && skill.id === "move");
-      button.classList.toggle("skill-locked", isRole && !unlocked);
+      button.classList.toggle("skill-selected", payload.input.activeSkill === skillId);
+      button.classList.toggle("skill-quickcast", payload.input.quickCast && skillId === "move");
+      button.classList.toggle("skill-locked", isRole && (!unlocked || !roleImplemented));
       button.disabled = false;
       if (isRole) {
-        const icons = assets.roleIcons[skill.id];
-        const icon = payload.input.activeSkill === skill.id ? icons.selected : usable ? icons.selecting : icons.normal;
-        button.style.backgroundImage = `url('${icon.src}')`;
+        const roleSkill = mech.roleSkills[skillId];
+        const iconSet = assets.roleIconsByMech[self.mechId]?.[skillId];
+        if (iconSet) {
+          const icon = payload.input.activeSkill === skillId ? iconSet.selected : usable ? iconSet.selecting : iconSet.normal;
+          button.style.backgroundImage = `url('${icon.src}')`;
+          button.textContent = "";
+        } else {
+          button.style.backgroundImage = "none";
+          button.textContent = roleSkill.name || ROLE_SLOT_LABELS[skillId];
+        }
       } else {
         button.style.backgroundImage = "none";
+        button.textContent = skill.label;
       }
     }
     const orbTurns = self.effects.orbTurns;
@@ -7823,7 +8228,7 @@ async function createGameView(root) {
         continue;
       }
       const src = getDisplayNumberSrc(assets, orbTurns);
-      if (!src || !self.skills.role3) {
+      if (!src || !self.skills.role3 || !isRoleSkillImplemented(self.mechId, "role3")) {
         badge.style.display = "none";
         continue;
       }
@@ -7831,6 +8236,7 @@ async function createGameView(root) {
       badge.style.display = "block";
     }
     endTurnButton.disabled = !payload.connected || payload.ballisticPending || payload.state.turn.acted || !canEndTurn(payload.state, payload.localSide);
+    endTurnButton.textContent = "\u7A7A\u8FC7";
     refreshSpiritPopup(payload);
   }
   function renderTurn(payload) {
@@ -7846,6 +8252,7 @@ async function createGameView(root) {
     turnCenter.textContent = `\u7B2C${payload.state.turn.round}\u56DE\u5408 | \u5F53\u524D: ${getSideLabel(current)}` + (payload.ballisticPending ? " | \u5F39\u9053\u7ED3\u7B97\u4E2D" : "");
   }
   function renderStatus(payload) {
+    statusTitle.textContent = "\u6570\u503C";
     const unit = payload.state.players[payload.localSide];
     statusHp.textContent = `\u751F\u547D\u503C: ${unit.stats.hp}`;
     statusSpirit.textContent = `\u5F53\u524D\u7075\u529B/\u7075\u529B\u4E0A\u9650: ${unit.stats.spirit}/${unit.stats.maxSpirit}`;
@@ -7859,7 +8266,7 @@ async function createGameView(root) {
     if (announcements.length === 0) {
       const empty = document.createElement("div");
       empty.className = "announcement-item";
-      empty.textContent = "\u6682\u65E0\u516C\u544A";
+      empty.textContent = "No announcements";
       announcementList.appendChild(empty);
       return;
     }
@@ -7867,15 +8274,194 @@ async function createGameView(root) {
     for (const entry of history) {
       const item = document.createElement("div");
       item.className = "announcement-item";
-      const sideMatch = entry.match(/^\[回合\d+P([12]):/);
-      if (sideMatch?.[1] === "1") {
+      if (entry.includes("blue") || entry.includes("Blue") || entry.includes("\u84DD\u65B9")) {
         item.classList.add("announcement-blue");
-      } else if (sideMatch?.[1] === "2") {
+      } else if (entry.includes("red") || entry.includes("Red") || entry.includes("\u7EA2\u65B9")) {
         item.classList.add("announcement-red");
       }
       item.textContent = entry;
       announcementList.appendChild(item);
     }
+  }
+  function getBpOptionLabel(optionId) {
+    if (!optionId) {
+      return "Unconfirmed";
+    }
+    if (optionId === "none") {
+      return "Empty Ban";
+    }
+    return getMechName(optionId);
+  }
+  function renderBpTurn(payload) {
+    const turn = getBpTurn(payload.bp);
+    turnBlue.classList.toggle("turn-active", Boolean(turn && turn.side === "blue"));
+    turnRed.classList.toggle("turn-active", Boolean(turn && turn.side === "red"));
+    turnCenter.textContent = `BP | ${getBpPhaseLabel(payload.bp)}`;
+  }
+  function renderBpStatus(payload) {
+    const turn = getBpTurn(payload.bp);
+    statusTitle.textContent = "BP Status";
+    statusHp.textContent = `Local Side: ${getSideLabel(payload.localSide)}`;
+    statusSpirit.textContent = `Phase: ${getBpPhaseLabel(payload.bp)}`;
+    statusAtk.textContent = `Active Side: ${turn ? getSideLabel(turn.side) : "None"}`;
+    statusCoord.textContent = `Enemy Ban On You: ${getBpOptionLabel(getBanAgainst(payload.bp, payload.localSide))}`;
+    statusGold.textContent = `Your Current Selection: ${getBpOptionLabel(payload.selectedOption)}`;
+  }
+  function renderBpAnnouncement(payload) {
+    const local = payload.localSide;
+    const enemy = oppositeSide(local);
+    const localState = payload.bp.sides[local];
+    const enemyState = payload.bp.sides[enemy];
+    const rows = [
+      { side: local, text: `Your Ban (to enemy): ${getBpOptionLabel(localState.ban)}` },
+      { side: local, text: `Your Pick: ${getBpOptionLabel(localState.pick)}` },
+      { side: enemy, text: `Enemy Ban (to you): ${getBpOptionLabel(enemyState.ban)}` },
+      { side: enemy, text: `Enemy Pick: ${getBpOptionLabel(enemyState.pick)}` }
+    ];
+    announcementList.innerHTML = "";
+    for (const row of rows) {
+      const item = document.createElement("div");
+      item.className = "announcement-item";
+      item.classList.add(row.side === "blue" ? "announcement-blue" : "announcement-red");
+      item.textContent = row.text;
+      announcementList.appendChild(item);
+    }
+  }
+  function renderBpSkillState(payload) {
+    hideUnlockPopup();
+    hideTooltip();
+    spiritPopup.style.display = "none";
+    skillLeft.style.display = "none";
+    bpSkillSection.style.display = "flex";
+    let mechId = null;
+    if (payload.selectedOption && payload.selectedOption !== "none") {
+      mechId = payload.selectedOption;
+    }
+    bpSkillTitle.textContent = mechId ? `${getMechName(mechId)} Skills` : "Mech Skills";
+    for (const roleSkillId of ["role1", "role2", "role3", "role4"]) {
+      const item = bpSkillItems.get(roleSkillId);
+      if (!item) {
+        continue;
+      }
+      if (!mechId) {
+        item.textContent = `${ROLE_SLOT_LABELS[roleSkillId]}: Select a mech`;
+        item.classList.add("bp-skill-empty");
+        continue;
+      }
+      const roleSkill = getRoleSkillDefinition(mechId, roleSkillId);
+      item.textContent = roleSkill.name ? `${ROLE_SLOT_LABELS[roleSkillId]}: ${roleSkill.name}` : `${ROLE_SLOT_LABELS[roleSkillId]}: TBD`;
+      item.classList.toggle("bp-skill-empty", !roleSkill.implemented);
+    }
+    const turn = getBpTurn(payload.bp);
+    if (!turn) {
+      endTurnButton.textContent = "BP Done";
+      endTurnButton.disabled = true;
+      return;
+    }
+    if (turn.side !== payload.localSide) {
+      endTurnButton.textContent = `Waiting for ${getSideLabel(turn.side)}`;
+      endTurnButton.disabled = true;
+      return;
+    }
+    const selectedOption = payload.selectedOption;
+    const hasSelection = Boolean(selectedOption);
+    const validSelection = Boolean(selectedOption) && (turn.action === "ban" ? true : selectedOption !== "none" && isBpOptionEnabled(payload.bp, payload.localSide, selectedOption));
+    endTurnButton.textContent = turn.action === "ban" ? "Confirm Ban" : "Confirm Pick";
+    endTurnButton.disabled = !payload.connected || !hasSelection || !validSelection;
+  }
+  function drawBpBoard(payload) {
+    const canvasSize = updateCanvasSize();
+    const ctx = boardCanvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    const { dpr, width: w, height: h } = canvasSize;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, w, h);
+    boardMetrics = null;
+    bpCardLayouts.length = 0;
+    const cols = 3;
+    const rows = 2;
+    const paddingX = Math.max(12, Math.floor(w * 0.035));
+    const paddingY = Math.max(12, Math.floor(h * 0.06));
+    const gapX = Math.max(10, Math.floor(w * 0.02));
+    const gapY = Math.max(10, Math.floor(h * 0.03));
+    const cardW = Math.floor((w - paddingX * 2 - gapX * (cols - 1)) / cols);
+    const cardH = Math.floor((h - paddingY * 2 - gapY * (rows - 1)) / rows);
+    const turn = getBpTurn(payload.bp);
+    const banAgainstLocal = getBanAgainst(payload.bp, payload.localSide);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    BP_OPTIONS.forEach((option, index) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const left = paddingX + col * (cardW + gapX);
+      const top = paddingY + row * (cardH + gapY);
+      const enabled = payload.connected && isBpOptionEnabled(payload.bp, payload.localSide, option.id);
+      const selected = payload.selectedOption === option.id;
+      const hovered = hoverBpOption === option.id;
+      const bannedForLocalPick = turn?.action === "pick" && banAgainstLocal === option.id;
+      bpCardLayouts.push({ id: option.id, left, top, width: cardW, height: cardH });
+      ctx.fillStyle = enabled ? "#050505" : "#111";
+      ctx.fillRect(left, top, cardW, cardH);
+      const titleH = Math.max(22, Math.floor(cardH * 0.18));
+      const imagePad = Math.max(8, Math.floor(cardW * 0.08));
+      const imageW = cardW - imagePad * 2;
+      const imageH = cardH - titleH - imagePad * 2;
+      const imageX = left + imagePad;
+      const imageY = top + imagePad;
+      if (option.id !== "none") {
+        const avatar = assets.chars[option.id];
+        ctx.drawImage(avatar, imageX, imageY, imageW, imageH);
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.strokeStyle = "rgba(255,255,255,0.7)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 3]);
+        ctx.strokeRect(imageX + 0.5, imageY + 0.5, imageW - 1, imageH - 1);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#fff";
+        ctx.font = `${Math.max(12, Math.floor(cardW * 0.12))}px 'zpix', monospace`;
+        ctx.fillText("Empty Ban", left + cardW * 0.5, imageY + imageH * 0.5);
+      }
+      if (bannedForLocalPick && option.id !== "none") {
+        ctx.fillStyle = "rgba(255, 70, 70, 0.28)";
+        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.fillStyle = "#ff8f8f";
+        ctx.font = `${Math.max(10, Math.floor(cardW * 0.09))}px 'zpix', monospace`;
+        ctx.fillText("Banned For You", left + cardW * 0.5, imageY + imageH * 0.5);
+      } else if (!enabled && turn?.side === payload.localSide) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.fillRect(imageX, imageY, imageW, imageH);
+      }
+      ctx.fillStyle = "rgba(0,0,0,0.68)";
+      ctx.fillRect(left, top + cardH - titleH, cardW, titleH);
+      ctx.fillStyle = "#fff";
+      ctx.font = `${Math.max(11, Math.floor(cardW * 0.095))}px 'zpix', monospace`;
+      ctx.fillText(option.name, left + cardW * 0.5, top + cardH - titleH * 0.5);
+      ctx.strokeStyle = selected ? "#58a8ff" : hovered ? "#9ec8ff" : "#fff";
+      ctx.lineWidth = selected ? 3 : 2;
+      ctx.strokeRect(left + 0.5, top + 0.5, cardW - 1, cardH - 1);
+    });
+  }
+  function getBpOptionFromClient(clientX, clientY) {
+    if (bpCardLayouts.length === 0) {
+      return null;
+    }
+    const rect = boardCanvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    for (const layout of bpCardLayouts) {
+      const inside = x >= layout.left && x < layout.left + layout.width && y >= layout.top && y < layout.top + layout.height;
+      if (inside) {
+        return layout.id;
+      }
+    }
+    return null;
   }
   function shouldContinueAnimating(payload) {
     if (!payload) {
@@ -7890,7 +8476,10 @@ async function createGameView(root) {
     return payload.state.players.blue.effects.orbTurns > 0 || payload.state.players.red.effects.orbTurns > 0;
   }
   function render(payload) {
+    currentMode = "battle";
     lastPayload = payload;
+    lastBpPayload = null;
+    hoverBpOption = null;
     drawBoard(payload);
     renderSkillState(payload);
     renderTurn(payload);
@@ -7900,9 +8489,18 @@ async function createGameView(root) {
       ensureAnimationLoop();
     }
   }
+  function renderBp(payload) {
+    currentMode = "bp";
+    lastBpPayload = payload;
+    drawBpBoard(payload);
+    renderBpSkillState(payload);
+    renderBpTurn(payload);
+    renderBpStatus(payload);
+    renderBpAnnouncement(payload);
+  }
   function tickAnimation() {
     animationFrame = 0;
-    if (!lastPayload) {
+    if (currentMode !== "battle" || !lastPayload) {
       return;
     }
     const now = performance.now();
@@ -7929,6 +8527,10 @@ async function createGameView(root) {
     animationFrame = window.requestAnimationFrame(tickAnimation);
   }
   window.addEventListener("resize", () => {
+    if (currentMode === "bp" && lastBpPayload) {
+      renderBp(lastBpPayload);
+      return;
+    }
     if (lastPayload) {
       render(lastPayload);
     }
@@ -7938,6 +8540,7 @@ async function createGameView(root) {
       handlers = nextHandlers;
     },
     render,
+    renderBp,
     playAttackAnimation(actor, from, to) {
       attackAnimation = {
         actor,
@@ -8005,6 +8608,9 @@ async function createGameView(root) {
 function isCommandEnvelope(message) {
   return message.kind === "command";
 }
+function isBpActionMessage(message) {
+  return message.kind === "bpAction";
+}
 function createPeerId() {
   return `thchess-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -8050,10 +8656,10 @@ async function bootstrap() {
   const debugPanel = createDebugPanel(debugRoot, { debugEnabled });
   const replayDownloadLine = document.createElement("div");
   replayDownloadLine.className = "debug-line";
-  replayDownloadLine.textContent = "\u5BF9\u5C40\u7ED3\u675F\u540E\u53EF\u4E0B\u8F7D .rpy \u590D\u76D8\u6587\u4EF6";
+  replayDownloadLine.textContent = "Replay download available after match ends";
   replayDownloadLine.style.marginTop = "8px";
   const replayDownloadLink = document.createElement("a");
-  replayDownloadLink.textContent = "\u4E0B\u8F7D replay.rpy";
+  replayDownloadLink.textContent = "download replay.rpy";
   replayDownloadLink.style.display = "none";
   replayDownloadLink.style.color = "#9ec8ff";
   replayDownloadLink.style.textDecoration = "underline";
@@ -8065,8 +8671,11 @@ async function bootstrap() {
     state.players.blue.stats.gold = 400;
     state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
   }
-  const replayInitialState = JSON.parse(JSON.stringify(state));
+  let replayInitialState = JSON.parse(JSON.stringify(state));
   let localSide = testMode ? "blue" : debugPanel.getSelectedSide();
+  let sessionPhase = "battle";
+  let bpState = createInitialBpState();
+  let bpSelectedOption = null;
   let inputState = createInitialInputState();
   let transport = null;
   let isConnected = testMode;
@@ -8079,6 +8688,15 @@ async function bootstrap() {
   const replayCommands = [];
   const peerRuntimeConfig = readPeerRuntimeConfig();
   const render = () => {
+    if (sessionPhase === "bp") {
+      view.renderBp({
+        bp: bpState,
+        localSide,
+        connected: isConnected,
+        selectedOption: bpSelectedOption
+      });
+      return;
+    }
     const ctx = { game: state, localSide, connected: isConnected, ballisticPending };
     view.render({
       state,
@@ -8094,10 +8712,72 @@ async function bootstrap() {
     debugPanel.updateDualView(state);
     scheduleTestAiTurn();
   };
+  const resetReplayDownload = () => {
+    if (replayDownloadUrl) {
+      URL.revokeObjectURL(replayDownloadUrl);
+      replayDownloadUrl = null;
+    }
+    replayDownloadLink.style.display = "none";
+    if (replayDownloadLine.firstChild) {
+      replayDownloadLine.firstChild.textContent = "Replay download available after match ends";
+    }
+  };
+  const startBattlePhase = (picks) => {
+    const bluePick = picks?.blue && picks.blue !== "none" ? picks.blue : null;
+    const redPick = picks?.red && picks.red !== "none" ? picks.red : null;
+    if (picks && (!bluePick || !redPick)) {
+      debugPanel.log("BP is incomplete; cannot start battle");
+      return;
+    }
+    state = bluePick && redPick ? createInitialState({ blue: bluePick, red: redPick }) : createInitialState();
+    if (testMode) {
+      state.players.blue.stats.gold = 400;
+      state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
+    }
+    replayInitialState = JSON.parse(JSON.stringify(state));
+    replayCommands.length = 0;
+    resetReplayDownload();
+    inputState = createInitialInputState();
+    ballisticPending = false;
+    bpSelectedOption = null;
+    sessionPhase = "battle";
+  };
+  const startBpPhase = () => {
+    sessionPhase = "bp";
+    bpState = createInitialBpState();
+    bpSelectedOption = null;
+    inputState = createInitialInputState();
+    ballisticPending = false;
+  };
+  const applyBpMessage = (message, source) => {
+    if (sessionPhase !== "bp") {
+      debugPanel.log(`${source} BP message ignored: not in BP phase`);
+      return false;
+    }
+    const outcome = applyBpAction(bpState, {
+      actor: message.actor,
+      action: message.action,
+      mechId: message.mechId
+    });
+    if (outcome.ok === false) {
+      debugPanel.log(`${source} BP action rejected: ${outcome.reason}`);
+      return false;
+    }
+    bpState = outcome.state;
+    bpSelectedOption = null;
+    if (isBpDone(bpState)) {
+      startBattlePhase({
+        blue: bpState.sides.blue.pick,
+        red: bpState.sides.red.pick
+      });
+    }
+    render();
+    return true;
+  };
   const applyEnvelope = (envelope, source) => {
     const prevState = state;
     const outcome = applyCommandEnvelope(state, envelope);
-    if (!outcome.ok) {
+    if (outcome.ok === false) {
       debugPanel.log(`${source} \u547D\u4EE4\u62D2\u7EDD: ${outcome.reason}`);
       return false;
     }
@@ -8137,7 +8817,7 @@ async function bootstrap() {
       replayDownloadLink.href = replayDownloadUrl;
       replayDownloadLink.download = buildReplayFilename(/* @__PURE__ */ new Date());
       replayDownloadLink.style.display = "inline";
-      replayDownloadLine.firstChild.textContent = "\u5BF9\u5C40\u7ED3\u675F\uFF0C\u590D\u76D8\u6587\u4EF6\u5DF2\u751F\u6210\uFF1A";
+      replayDownloadLine.firstChild.textContent = "Replay file is ready:";
     }
     render();
     return true;
@@ -8147,7 +8827,7 @@ async function bootstrap() {
       return;
     }
     if (!transport || !isConnected) {
-      debugPanel.log("\u672A\u8FDE\u63A5\uFF0C\u547D\u4EE4\u672A\u53D1\u9001");
+      debugPanel.log("Not connected, command not sent");
       return;
     }
     if (debugEnabled) {
@@ -8157,7 +8837,26 @@ async function bootstrap() {
     }
     transport.send(envelope);
   };
+  const sendBpMessage = (message) => {
+    if (testMode) {
+      return;
+    }
+    if (!transport || !isConnected) {
+      debugPanel.log("Not connected, BP action not sent");
+      return;
+    }
+    if (debugEnabled) {
+      debugPanel.log(
+        `send bp actor=${message.actor} action=${message.action} mech=${message.mechId}`
+      );
+    }
+    transport.send(message);
+  };
   const issueLocalCommand = (command) => {
+    if (sessionPhase !== "battle") {
+      debugPanel.log("Cannot issue battle command during BP phase");
+      return;
+    }
     if (!isConnected) {
       debugPanel.log("\u8FDE\u63A5\u672A\u5B8C\u6210\uFF0C\u6682\u65F6\u65E0\u6CD5\u64CD\u4F5C");
       return;
@@ -8175,8 +8874,47 @@ async function bootstrap() {
       sendEnvelope(envelope);
     }
   };
+  const issueLocalBpConfirm = () => {
+    if (sessionPhase !== "bp") {
+      return;
+    }
+    if (!isConnected) {
+      debugPanel.log("Not connected yet, BP action is unavailable");
+      return;
+    }
+    const turn = getBpTurn(bpState);
+    if (!turn) {
+      debugPanel.log("BP already completed");
+      return;
+    }
+    if (turn.side !== localSide) {
+      debugPanel.log("It is not your BP turn");
+      return;
+    }
+    if (!bpSelectedOption) {
+      debugPanel.log("Please select a BP option first");
+      return;
+    }
+    if (turn.action === "pick" && bpSelectedOption === "none") {
+      debugPanel.log("Empty pick is not allowed");
+      return;
+    }
+    if (!isBpOptionEnabled(bpState, localSide, bpSelectedOption)) {
+      debugPanel.log("This BP option cannot be confirmed now");
+      return;
+    }
+    const message = {
+      kind: "bpAction",
+      actor: localSide,
+      action: turn.action,
+      mechId: bpSelectedOption
+    };
+    if (applyBpMessage(message, "local")) {
+      sendBpMessage(message);
+    }
+  };
   const runTestAiTurn = () => {
-    if (!testMode || state.winner || state.turn.side !== "red" || ballisticPending) {
+    if (!testMode || sessionPhase !== "battle" || state.winner || state.turn.side !== "red" || ballisticPending) {
       return;
     }
     const legalMoves = getLegalMoveTargets(state, "red");
@@ -8207,7 +8945,7 @@ async function bootstrap() {
       window.clearTimeout(testAiTimer);
       testAiTimer = null;
     }
-    if (state.winner || ballisticPending || state.turn.side !== "red" || state.turn.acted) {
+    if (sessionPhase !== "battle" || state.winner || ballisticPending || state.turn.side !== "red" || state.turn.acted) {
       return;
     }
     testAiTimer = window.setTimeout(() => {
@@ -8222,6 +8960,9 @@ async function bootstrap() {
     debugPanel.setTransportStatus(status);
     if (status.type === "connected") {
       isConnected = true;
+      if (!testMode) {
+        startBpPhase();
+      }
       render();
       return;
     }
@@ -8229,6 +8970,10 @@ async function bootstrap() {
       isConnected = false;
       inputState = createInitialInputState();
       ballisticPending = false;
+      if (!testMode) {
+        sessionPhase = "battle";
+        bpSelectedOption = null;
+      }
       if (sessionMode === "receiver" && transport) {
         const invite = buildInviteHash(transport.getLocalId());
         debugPanel.setInviteHash(invite);
@@ -8245,12 +8990,20 @@ async function bootstrap() {
       isConnected = false;
       inputState = createInitialInputState();
       ballisticPending = false;
+      if (!testMode) {
+        sessionPhase = "battle";
+        bpSelectedOption = null;
+      }
       render();
       return;
     }
     isConnected = false;
     inputState = createInitialInputState();
     ballisticPending = false;
+    if (!testMode) {
+      sessionPhase = "battle";
+      bpSelectedOption = null;
+    }
     render();
   };
   const bindTransport = (next) => {
@@ -8267,7 +9020,23 @@ async function bootstrap() {
       if (mySeq !== transportSeq) {
         return;
       }
+      if (isBpActionMessage(message)) {
+        if (debugEnabled) {
+          debugPanel.log(
+            `recv bp actor=${message.actor} action=${message.action} mech=${message.mechId}`
+          );
+        }
+        if (transport?.name === "loopback" && message.actor === localSide) {
+          return;
+        }
+        applyBpMessage(message, "remote");
+        return;
+      }
       if (isCommandEnvelope(message)) {
+        if (sessionPhase !== "battle") {
+          debugPanel.log("Received command during BP phase; ignored");
+          return;
+        }
         if (debugEnabled) {
           debugPanel.log(
             `recv command seq=${message.seq} actor=${message.command.actor} type=${message.command.type}`
@@ -8284,6 +9053,9 @@ async function bootstrap() {
   };
   view.setHandlers({
     onSkillClick(skill) {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       const next = onSkillClick(inputState, skill, {
         game: state,
         localSide,
@@ -8298,6 +9070,9 @@ async function bootstrap() {
       }
     },
     onCellClick(coord) {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       const next = onBoardClick(inputState, coord, {
         game: state,
         localSide,
@@ -8312,6 +9087,9 @@ async function bootstrap() {
       }
     },
     onEndTurnClick() {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       const next = onEndTurnClick(inputState, {
         game: state,
         localSide,
@@ -8326,6 +9104,9 @@ async function bootstrap() {
       }
     },
     onSpiritAdjust(delta) {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       const next = onAdjustSpiritSpend(inputState, delta, {
         game: state,
         localSide,
@@ -8336,7 +9117,20 @@ async function bootstrap() {
       render();
     },
     onUnlockSkill(skill) {
+      if (sessionPhase !== "battle") {
+        return;
+      }
       issueLocalCommand(createUnlockSkillCommand(localSide, skill));
+    },
+    onBpOptionClick(optionId) {
+      if (sessionPhase !== "bp") {
+        return;
+      }
+      bpSelectedOption = optionId;
+      render();
+    },
+    onBpConfirm() {
+      issueLocalBpConfirm();
     }
   });
   debugPanel.onSideChange((side) => {
@@ -8344,6 +9138,7 @@ async function bootstrap() {
       localSide = "blue";
       inputState = createInitialInputState();
       ballisticPending = false;
+      bpSelectedOption = null;
       debugPanel.log("test\u6A21\u5F0F\u4E0B\u672C\u673A\u63A7\u5236\u65B9\u56FA\u5B9A\u4E3A P1/\u84DD\u65B9");
       render();
       return;
@@ -8351,6 +9146,7 @@ async function bootstrap() {
     localSide = side;
     inputState = createInitialInputState();
     ballisticPending = false;
+    bpSelectedOption = null;
     debugPanel.log(
       `\u672C\u673A\u63A7\u5236\u65B9: ${side === "blue" ? "P1/\u84DD\u65B9" : "P2/\u7EA2\u65B9"}`
     );
@@ -8364,6 +9160,8 @@ async function bootstrap() {
     debugPanel.setInviteHash("");
     inputState = createInitialInputState();
     ballisticPending = false;
+    sessionPhase = "battle";
+    bpSelectedOption = null;
     if (request.mode === "receiver") {
       sessionMode = "receiver";
       pendingRemoteId = null;
@@ -8389,6 +9187,8 @@ async function bootstrap() {
     sessionMode = null;
     pendingRemoteId = null;
     ballisticPending = false;
+    sessionPhase = "battle";
+    bpSelectedOption = null;
     const loopback = createLoopbackTransport();
     bindTransport(loopback);
     loopback.connect("self");

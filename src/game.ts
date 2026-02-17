@@ -8,6 +8,7 @@
   CommandEnvelope,
   Coord,
   GameState,
+  MechId,
   PerspectiveCell,
   PerspectiveState,
   ProjectileEffect,
@@ -26,6 +27,7 @@
   keyToCoord,
   oppositeSide,
 } from "./protocol";
+import { DEFAULT_MECH_ID, isRoleSkillImplemented } from "./mech";
 
 const BLUE_SPAWN: Coord = { x: 1, y: 4 }; // B5
 const RED_SPAWN: Coord = { x: 10, y: 4 }; // K5
@@ -71,10 +73,11 @@ export function getBaseTerrain(coord: Coord): TerrainType {
   return "ground";
 }
 
-function createUnit(side: Side, pos: Coord, initialSpirit: number): UnitState {
+function createUnit(side: Side, pos: Coord, initialSpirit: number, mechId: MechId): UnitState {
   return {
     id: getPlayerIdBySide(side),
     side,
+    mechId,
     pos: { ...pos },
     stats: {
       hp: 10,
@@ -135,7 +138,17 @@ function cloneWalls(walls: Record<string, WallState>): Record<string, WallState>
   return next;
 }
 
-export function createInitialState(): GameState {
+function canUseRoleSkillByMech(state: GameState, side: Side, skill: RoleSkillId): boolean {
+  return isRoleSkillImplemented(state.players[side].mechId, skill);
+}
+
+export function canUseRoleSkillByState(state: GameState, side: Side, skill: RoleSkillId): boolean {
+  return canUseRoleSkillByMech(state, side, skill);
+}
+
+export function createInitialState(mechBySide?: Partial<Record<Side, MechId>>): GameState {
+  const blueMech = mechBySide?.blue ?? DEFAULT_MECH_ID;
+  const redMech = mechBySide?.red ?? DEFAULT_MECH_ID;
   return {
     seq: 0,
     turn: {
@@ -145,8 +158,8 @@ export function createInitialState(): GameState {
       pendingAnnouncement: null,
     },
     players: {
-      blue: createUnit("blue", BLUE_SPAWN, 0),
-      red: createUnit("red", RED_SPAWN, 1),
+      blue: createUnit("blue", BLUE_SPAWN, 0, blueMech),
+      red: createUnit("red", RED_SPAWN, 1, redMech),
     },
     walls: createWalls(),
     announcements: [],
@@ -465,7 +478,7 @@ function applyEnemyDamage(
   }
   const hpAfter = Math.max(0, target.stats.hp - amount);
   target.stats.hp = hpAfter;
-  damageAnnouncements.push(`${getSideLabel(targetSide)}\u53d7\u5230\u4e86${amount}\u70b9\u4f24\u5bb3`);
+  damageAnnouncements.push(`机体受伤：${getSideLabel(targetSide)}受到了${amount}点伤害`);
   return true;
 }
 
@@ -534,9 +547,10 @@ function appendAnnouncements(base: string[], additions: string[]): string[] {
   return merged.slice(merged.length - MAX_ANNOUNCEMENTS);
 }
 
+// 公告属于双方可见信息，写死并且不允许任何更改。{}代表变量。
 function formatTurnAnnouncement(round: number, side: Side, text: string): string {
-  const playerNo = side === "blue" ? 1 : 2;
-  return `[回合${round}P${playerNo}: ${text}]`;
+  void side;
+  return `回合${round}: ${text}`;
 }
 
 function appendTurnAnnouncements(
@@ -666,6 +680,9 @@ export function getLegalBlinkTargets(state: GameState, actor: Side, spiritSpend:
   if (!state.players[actor].skills.role4) {
     return [];
   }
+  if (!canUseRoleSkillByMech(state, actor, "role4")) {
+    return [];
+  }
 
   const self = state.players[actor];
   const result: Coord[] = [];
@@ -727,7 +744,7 @@ function applyMove(state: GameState, command: Command): ApplyOutcome {
     ...state,
     players: nextPlayers,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}移动到${formatCoordDisplay(target)}`,
+      `${getSideLabel(actor)}进行了移动`,
     ]),
     turn: {
       ...state.turn,
@@ -778,7 +795,7 @@ function applyBuild(state: GameState, command: Command): ApplyOutcome {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}在${formatCoordDisplay(target)}建造了生命上限为${command.spirit}的墙体`,
+      `${getSideLabel(actor)}进行了建造`,
     ]),
     turn: {
       ...state.turn,
@@ -804,8 +821,8 @@ function applyScout(state: GameState, command: Command): ApplyOutcome {
 
   const enemy = state.players[oppositeSide(actor)];
   const scoutResult = isGrass(enemy.pos)
-    ? "目标位于草丛中，无法被侦察"
-    : `目标坐标为${formatCoordDisplay(enemy.pos)}`;
+    ? "/无法被侦察"
+    : `${getSideLabel(oppositeSide(actor))}的坐标为${formatCoordDisplay(enemy.pos)}。`;
 
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= 1;
@@ -868,7 +885,7 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}对${formatCoordDisplay(target)}发动了普通攻击`,
+      `${getSideLabel(actor)}进行了普通攻击`,
       ...damageAnnouncements,
     ]),
     turn: {
@@ -891,6 +908,9 @@ function applyUnlockSkill(state: GameState, command: Command): ApplyOutcome {
   }
 
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, command.skill)) {
+    return { ok: false, reason: "role skill not implemented for current mech" };
+  }
   if (self.skills[command.skill]) {
     return { ok: false, reason: "skill already unlocked" };
   }
@@ -921,6 +941,9 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
   }
 
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, "role1")) {
+    return { ok: false, reason: "role1 not implemented for current mech" };
+  }
   if (!self.skills.role1) {
     return { ok: false, reason: "skill role1 not unlocked" };
   }
@@ -1016,7 +1039,7 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}朝${formatCoordDisplay(target)}发射了封魔针`,
+      "灵梦发射了封魔针",
       ...damageAnnouncements,
     ]),
     turn: {
@@ -1048,6 +1071,9 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
   }
 
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, "role2")) {
+    return { ok: false, reason: "role2 not implemented for current mech" };
+  }
   if (!self.skills.role2) {
     return { ok: false, reason: "skill role2 not unlocked" };
   }
@@ -1101,7 +1127,7 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}朝${formatCoordDisplay(target)}发射了符札`,
+      "灵梦发射了符札",
       ...damageAnnouncements,
     ]),
     turn: {
@@ -1140,6 +1166,9 @@ function applyOrb(state: GameState, command: Command): ApplyOutcome {
   }
 
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, "role3")) {
+    return { ok: false, reason: "role3 not implemented for current mech" };
+  }
   if (!self.skills.role3) {
     return { ok: false, reason: "skill role3 not unlocked" };
   }
@@ -1161,7 +1190,7 @@ function applyOrb(state: GameState, command: Command): ApplyOutcome {
       ...state,
       players: nextPlayers,
       announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-        `${getSideLabel(actor)}获得了半径为${command.spirit}的视野`,
+        `灵梦获得了半径为${command.spirit}的视野`,
       ]),
       turn: {
         ...state.turn,
@@ -1182,6 +1211,9 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
   }
 
   const self = state.players[actor];
+  if (!canUseRoleSkillByMech(state, actor, "role4")) {
+    return { ok: false, reason: "role4 not implemented for current mech" };
+  }
   if (!self.skills.role4) {
     return { ok: false, reason: "skill role4 not unlocked" };
   }
@@ -1211,7 +1243,7 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
       ...state,
       players: nextPlayers,
       announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-        `${getSideLabel(actor)}闪现到了${formatCoordDisplay(target)}`,
+        `灵梦闪现到了半径为${command.spirit}内的一格`,
       ]),
       turn: {
         ...state.turn,

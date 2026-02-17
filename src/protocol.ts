@@ -4,6 +4,9 @@ export const COL_LABELS = "ABCDEFGHIJKL".split("");
 
 export type Side = "blue" | "red";
 export type PlayerId = "p1" | "p2";
+export type MechId = "reimu" | "marisa" | "koishi" | "aya";
+export type BpBanOptionId = MechId | "none";
+export type BpActionType = "ban" | "pick";
 export type TerrainType = "ground" | "grass" | "spawnBlue" | "spawnRed";
 export type SkillId =
   | "move"
@@ -46,6 +49,7 @@ export interface UnitEffects {
 export interface UnitState {
   id: PlayerId;
   side: Side;
+  mechId: MechId;
   pos: Coord;
   stats: UnitStats;
   skills: SkillUnlockState;
@@ -187,7 +191,14 @@ export interface DebugHashMessage {
   hash: string;
 }
 
-export type NetMessage = CommandEnvelope | DebugHashMessage;
+export interface BpActionMessage {
+  kind: "bpAction";
+  actor: Side;
+  action: BpActionType;
+  mechId: BpBanOptionId;
+}
+
+export type NetMessage = CommandEnvelope | DebugHashMessage | BpActionMessage;
 
 export interface ApplyResult {
   ok: true;
