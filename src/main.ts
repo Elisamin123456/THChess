@@ -2,8 +2,11 @@
 import {
   applyCommandEnvelope,
   buildPerspective,
+  createEndTurnCommand,
   createInitialState,
+  createMoveCommand,
   createUnlockSkillCommand,
+  getLegalMoveTargets,
 } from "./game";
 import {
   createInitialInputState,
@@ -15,7 +18,7 @@ import {
   onEndTurnClick as mapEndTurnClick,
   onSkillClick as mapSkillClick,
 } from "./input";
-import { Command, CommandEnvelope, NetMessage, Side, keyToCoord } from "./protocol";
+import { Command, CommandEnvelope, GameState, NetMessage, Side, keyToCoord } from "./protocol";
 import {
   ITransport,
   PeerRuntimeConfig,
@@ -23,6 +26,7 @@ import {
   createLoopbackTransport,
   createPeerJsTransport,
 } from "./transport";
+import { bootstrapReplayPage, buildReplayFilename, serializeReplay } from "./replay";
 import { createGameView } from "./view";
 
 function isCommandEnvelope(message: NetMessage): message is CommandEnvelope {
@@ -75,19 +79,46 @@ async function bootstrap(): Promise<void> {
     throw new Error("missing #app or #debug-root");
   }
 
-  const debugEnabled = new URLSearchParams(window.location.search).has("debug");
+  const searchParams = new URLSearchParams(window.location.search);
+  if (searchParams.has("replay")) {
+    bootstrapReplayPage(appRoot, debugRoot);
+    return;
+  }
+
+  const debugEnabled = searchParams.has("debug");
+  const testMode = searchParams.has("test");
   const view = await createGameView(appRoot);
   const debugPanel = createDebugPanel(debugRoot, { debugEnabled });
+  const replayDownloadLine = document.createElement("div");
+  replayDownloadLine.className = "debug-line";
+  replayDownloadLine.textContent = "对局结束后可下载 .rpy 复盘文件";
+  replayDownloadLine.style.marginTop = "8px";
+  const replayDownloadLink = document.createElement("a");
+  replayDownloadLink.textContent = "下载 replay.rpy";
+  replayDownloadLink.style.display = "none";
+  replayDownloadLink.style.color = "#9ec8ff";
+  replayDownloadLink.style.textDecoration = "underline";
+  replayDownloadLine.appendChild(document.createTextNode(" "));
+  replayDownloadLine.appendChild(replayDownloadLink);
+  debugRoot.appendChild(replayDownloadLine);
 
   let state = createInitialState();
-  let localSide: Side = debugPanel.getSelectedSide();
+  if (testMode) {
+    state.players.blue.stats.gold = 400;
+    state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
+  }
+  const replayInitialState: GameState = JSON.parse(JSON.stringify(state));
+  let localSide: Side = testMode ? "blue" : debugPanel.getSelectedSide();
   let inputState = createInitialInputState();
   let transport: ITransport | null = null;
-  let isConnected = false;
+  let isConnected = testMode;
   let ballisticPending = false;
   let pendingRemoteId: string | null = null;
   let transportSeq = 0;
   let sessionMode: "receiver" | "connector" | null = null;
+  let testAiTimer: number | null = null;
+  let replayDownloadUrl: string | null = null;
+  const replayCommands: CommandEnvelope[] = [];
   const peerRuntimeConfig = readPeerRuntimeConfig();
 
   const render = (): void => {
@@ -104,6 +135,7 @@ async function bootstrap(): Promise<void> {
       spiritSelector: getSpiritSelectorView(inputState, ctx),
     });
     debugPanel.updateDualView(state);
+    scheduleTestAiTurn();
   };
 
   const applyEnvelope = (envelope: CommandEnvelope, source: "local" | "remote"): boolean => {
@@ -115,6 +147,7 @@ async function bootstrap(): Promise<void> {
     }
 
     state = outcome.state;
+    replayCommands.push(envelope);
     inputState = createInitialInputState();
     if (envelope.command.type === "endTurn") {
       ballisticPending = false;
@@ -141,11 +174,28 @@ async function bootstrap(): Promise<void> {
       });
     }
 
+    if (!prevState.winner && state.winner) {
+      if (replayDownloadUrl) {
+        URL.revokeObjectURL(replayDownloadUrl);
+      }
+      const replayContent = serializeReplay(replayCommands, replayInitialState);
+      replayDownloadUrl = URL.createObjectURL(
+        new Blob([replayContent], { type: "text/plain;charset=utf-8" }),
+      );
+      replayDownloadLink.href = replayDownloadUrl;
+      replayDownloadLink.download = buildReplayFilename(new Date());
+      replayDownloadLink.style.display = "inline";
+      replayDownloadLine.firstChild!.textContent = "对局结束，复盘文件已生成：";
+    }
+
     render();
     return true;
   };
 
   const sendEnvelope = (envelope: CommandEnvelope): void => {
+    if (testMode) {
+      return;
+    }
     if (!transport || !isConnected) {
       debugPanel.log("\u672a\u8fde\u63a5\uff0c\u547d\u4ee4\u672a\u53d1\u9001");
       return;
@@ -163,6 +213,10 @@ async function bootstrap(): Promise<void> {
       debugPanel.log("\u8fde\u63a5\u672a\u5b8c\u6210\uff0c\u6682\u65f6\u65e0\u6cd5\u64cd\u4f5c");
       return;
     }
+    if (testMode && command.actor !== localSide) {
+      debugPanel.log("test\u6a21\u5f0f\u4e0b\u4ec5\u652f\u6301\u64cd\u4f5cP1/\u84dd\u65b9");
+      return;
+    }
     const envelope: CommandEnvelope = {
       kind: "command",
       seq: state.seq + 1,
@@ -171,6 +225,50 @@ async function bootstrap(): Promise<void> {
     if (applyEnvelope(envelope, "local")) {
       sendEnvelope(envelope);
     }
+  };
+
+  const runTestAiTurn = (): void => {
+    if (!testMode || state.winner || state.turn.side !== "red" || ballisticPending) {
+      return;
+    }
+
+    const legalMoves = getLegalMoveTargets(state, "red");
+    if (legalMoves.length > 0) {
+      const target = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      const moveEnvelope: CommandEnvelope = {
+        kind: "command",
+        seq: state.seq + 1,
+        command: createMoveCommand("red", target),
+      };
+      applyEnvelope(moveEnvelope, "local");
+      return;
+    }
+
+    if (!state.winner && state.turn.side === "red" && !state.turn.acted) {
+      const endTurnEnvelope: CommandEnvelope = {
+        kind: "command",
+        seq: state.seq + 1,
+        command: createEndTurnCommand("red"),
+      };
+      applyEnvelope(endTurnEnvelope, "local");
+    }
+  };
+
+  const scheduleTestAiTurn = (): void => {
+    if (!testMode) {
+      return;
+    }
+    if (testAiTimer !== null) {
+      window.clearTimeout(testAiTimer);
+      testAiTimer = null;
+    }
+    if (state.winner || ballisticPending || state.turn.side !== "red" || state.turn.acted) {
+      return;
+    }
+    testAiTimer = window.setTimeout(() => {
+      testAiTimer = null;
+      runTestAiTurn();
+    }, 220);
   };
 
   const applyTransportStatus = (status: TransportStatus, mySeq: number): void => {
@@ -309,6 +407,14 @@ async function bootstrap(): Promise<void> {
   });
 
   debugPanel.onSideChange((side) => {
+    if (testMode) {
+      localSide = "blue";
+      inputState = createInitialInputState();
+      ballisticPending = false;
+      debugPanel.log("test\u6a21\u5f0f\u4e0b\u672c\u673a\u63a7\u5236\u65b9\u56fa\u5b9a\u4e3a P1/\u84dd\u65b9");
+      render();
+      return;
+    }
     localSide = side;
     inputState = createInitialInputState();
     ballisticPending = false;
@@ -319,6 +425,10 @@ async function bootstrap(): Promise<void> {
   });
 
   debugPanel.onConnectAction((request: ConnectRequest) => {
+    if (testMode) {
+      debugPanel.log("test\u6a21\u5f0f\u65e0\u9700\u8054\u673a");
+      return;
+    }
     debugPanel.setInviteHash("");
     inputState = createInitialInputState();
     ballisticPending = false;
@@ -344,6 +454,10 @@ async function bootstrap(): Promise<void> {
   });
 
   debugPanel.onStartLoopback(() => {
+    if (testMode) {
+      debugPanel.log("test\u6a21\u5f0f\u65e0\u9700\u8054\u673a");
+      return;
+    }
     sessionMode = null;
     pendingRemoteId = null;
     ballisticPending = false;
@@ -352,6 +466,10 @@ async function bootstrap(): Promise<void> {
     loopback.connect("self");
   });
 
+  if (testMode) {
+    debugPanel.setTransportStatus({ type: "connected", detail: "test mode local" });
+    debugPanel.log("test\u6a21\u5f0f\u5df2\u542f\u7528\uff1aP1\u4e3a\u73a9\u5bb6\uff0cP2\u4e3a\u968f\u673a\u79fb\u52a8AI");
+  }
   render();
 }
 

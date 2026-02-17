@@ -167,6 +167,7 @@ export interface ProjectileEffect {
   actor: Side;
   origin: string;
   path: string[];
+  rayEnd?: Coord;
   delayMs: number;
 }
 
@@ -229,6 +230,10 @@ export function coordsEqual(a: Coord, b: Coord): boolean {
 
 export function coordToKey(coord: Coord): string {
   return `${COL_LABELS[coord.x]}${coord.y + 1}`;
+}
+
+export function coordToDisplayKey(coord: Coord): string {
+  return `${COL_LABELS[coord.x]}:${coord.y + 1}`;
 }
 
 export function keyToCoord(key: string): Coord | null {

@@ -667,6 +667,9 @@ function coordsEqual(a, b) {
 function coordToKey(coord) {
   return `${COL_LABELS[coord.x]}${coord.y + 1}`;
 }
+function coordToDisplayKey(coord) {
+  return `${COL_LABELS[coord.x]}:${coord.y + 1}`;
+}
 function keyToCoord(key) {
   if (key.length < 2) {
     return null;
@@ -694,6 +697,7 @@ var RED_SPAWN = { x: 10, y: 4 };
 var SKILL_UNLOCK_COST = 100;
 var NEEDLE_INTERVAL_MS = 140;
 var MAX_ANNOUNCEMENTS = 80;
+var RAY_EPSILON = 1e-9;
 var INITIAL_WALL_COORDS = [];
 for (let y = 3; y <= 8; y += 1) {
   INITIAL_WALL_COORDS.push({ x: 3, y });
@@ -726,7 +730,7 @@ function createUnit(side, pos, initialSpirit) {
     side,
     pos: { ...pos },
     stats: {
-      hp: 20,
+      hp: 10,
       spirit: initialSpirit,
       maxSpirit: 25,
       atk: 1,
@@ -916,6 +920,62 @@ function getVisionRadius(state, side) {
   }
   return unit.stats.vision;
 }
+function computeRayMaxT(startX, startY, dirX, dirY) {
+  let maxT = Number.POSITIVE_INFINITY;
+  if (dirX > 0) {
+    maxT = Math.min(maxT, (BOARD_WIDTH - startX) / dirX);
+  } else if (dirX < 0) {
+    maxT = Math.min(maxT, (0 - startX) / dirX);
+  }
+  if (dirY > 0) {
+    maxT = Math.min(maxT, (BOARD_HEIGHT - startY) / dirY);
+  } else if (dirY < 0) {
+    maxT = Math.min(maxT, (0 - startY) / dirY);
+  }
+  return maxT;
+}
+function intersectRayCell(startX, startY, dirX, dirY, maxT, cellX, cellY) {
+  const minX = cellX;
+  const maxX = cellX + 1;
+  const minY = cellY;
+  const maxY = cellY + 1;
+  let enterT = 0;
+  let exitT = maxT;
+  if (Math.abs(dirX) <= RAY_EPSILON) {
+    if (startX < minX || startX > maxX) {
+      return null;
+    }
+  } else {
+    const tx1 = (minX - startX) / dirX;
+    const tx2 = (maxX - startX) / dirX;
+    const txEnter = Math.min(tx1, tx2);
+    const txExit = Math.max(tx1, tx2);
+    enterT = Math.max(enterT, txEnter);
+    exitT = Math.min(exitT, txExit);
+  }
+  if (Math.abs(dirY) <= RAY_EPSILON) {
+    if (startY < minY || startY > maxY) {
+      return null;
+    }
+  } else {
+    const ty1 = (minY - startY) / dirY;
+    const ty2 = (maxY - startY) / dirY;
+    const tyEnter = Math.min(ty1, ty2);
+    const tyExit = Math.max(ty1, ty2);
+    enterT = Math.max(enterT, tyEnter);
+    exitT = Math.min(exitT, tyExit);
+  }
+  if (exitT < enterT - RAY_EPSILON) {
+    return null;
+  }
+  if (exitT <= RAY_EPSILON) {
+    return null;
+  }
+  return {
+    enterT: Math.max(0, enterT),
+    exitT: Math.max(0, Math.min(maxT, exitT))
+  };
+}
 function buildRayPath(from, to) {
   const startX = from.x + 0.5;
   const startY = from.y + 0.5;
@@ -923,40 +983,59 @@ function buildRayPath(from, to) {
   const targetY = to.y + 0.5;
   const dirX = targetX - startX;
   const dirY = targetY - startY;
-  if (dirX === 0 && dirY === 0) {
-    return [];
+  if (Math.abs(dirX) <= RAY_EPSILON && Math.abs(dirY) <= RAY_EPSILON) {
+    return null;
   }
-  let x = from.x;
-  let y = from.y;
-  const stepX = dirX > 0 ? 1 : dirX < 0 ? -1 : 0;
-  const stepY = dirY > 0 ? 1 : dirY < 0 ? -1 : 0;
-  const tDeltaX = dirX === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / dirX);
-  const tDeltaY = dirY === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / dirY);
-  const nextBoundaryX = stepX > 0 ? x + 1 : x;
-  const nextBoundaryY = stepY > 0 ? y + 1 : y;
-  let tMaxX = dirX === 0 ? Number.POSITIVE_INFINITY : Math.abs((nextBoundaryX - startX) / dirX);
-  let tMaxY = dirY === 0 ? Number.POSITIVE_INFINITY : Math.abs((nextBoundaryY - startY) / dirY);
-  const path = [];
-  while (true) {
-    if (tMaxX < tMaxY) {
-      x += stepX;
-      tMaxX += tDeltaX;
-    } else if (tMaxY < tMaxX) {
-      y += stepY;
-      tMaxY += tDeltaY;
-    } else {
-      x += stepX;
-      y += stepY;
-      tMaxX += tDeltaX;
-      tMaxY += tDeltaY;
-    }
-    const cell = { x, y };
-    if (!isCoordInBounds(cell)) {
-      break;
-    }
-    path.push(cell);
+  const maxT = computeRayMaxT(startX, startY, dirX, dirY);
+  if (!Number.isFinite(maxT) || maxT <= 0) {
+    return null;
   }
-  return path;
+  const cells = [];
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      if (x === from.x && y === from.y) {
+        continue;
+      }
+      const hit = intersectRayCell(startX, startY, dirX, dirY, maxT, x, y);
+      if (!hit) {
+        continue;
+      }
+      cells.push({
+        coord: { x, y },
+        enterT: hit.enterT,
+        exitT: hit.exitT
+      });
+    }
+  }
+  cells.sort((a, b) => {
+    const enterDelta = a.enterT - b.enterT;
+    if (Math.abs(enterDelta) > RAY_EPSILON) {
+      return enterDelta;
+    }
+    const exitDelta = a.exitT - b.exitT;
+    if (Math.abs(exitDelta) > RAY_EPSILON) {
+      return exitDelta;
+    }
+    if (a.coord.y !== b.coord.y) {
+      return a.coord.y - b.coord.y;
+    }
+    return a.coord.x - b.coord.x;
+  });
+  return {
+    cells,
+    startX,
+    startY,
+    dirX,
+    dirY,
+    maxT
+  };
+}
+function getRayPoint(path, t) {
+  const clampedT = Math.max(0, Math.min(path.maxT, t));
+  return {
+    x: path.startX + path.dirX * clampedT,
+    y: path.startY + path.dirY * clampedT
+  };
 }
 function applyEnemyDamage(players, targetSide, amount, damageAnnouncements) {
   if (amount <= 0) {
@@ -982,7 +1061,7 @@ function applyWallDamage(players, walls, actor, coord, amount) {
   }
   const hpAfter = wall.hp - amount;
   if (hpAfter <= 0) {
-    const reward = 4 * wall.maxHp;
+    const reward = 10 * wall.maxHp;
     players[actor].stats.gold += reward;
     walls[key] = {
       ...wall,
@@ -997,13 +1076,14 @@ function applyWallDamage(players, walls, actor, coord, amount) {
   }
   return true;
 }
-function buildProjectileEffect(kind, actor, origin, path, delayMs) {
+function buildProjectileEffect(kind, actor, origin, path, delayMs, rayEnd) {
   return {
     kind,
     actor,
     origin: coordToKey(origin),
     path: path.map((cell) => coordToKey(cell)),
-    delayMs
+    delayMs,
+    ...rayEnd ? { rayEnd } : {}
   };
 }
 function appendAnnouncements(base, additions) {
@@ -1018,6 +1098,22 @@ function appendAnnouncements(base, additions) {
     return merged;
   }
   return merged.slice(merged.length - MAX_ANNOUNCEMENTS);
+}
+function formatTurnAnnouncement(round, side, text) {
+  const playerNo = side === "blue" ? 1 : 2;
+  return `[\u56DE\u5408${round}P${playerNo}: ${text}]`;
+}
+function appendTurnAnnouncements(base, round, side, additions) {
+  if (additions.length === 0) {
+    return appendAnnouncements(base, []);
+  }
+  return appendAnnouncements(
+    base,
+    additions.map((text) => formatTurnAnnouncement(round, side, text))
+  );
+}
+function formatCoordDisplay(coord) {
+  return `${COL_LABELS[coord.x]}:${coord.y + 1}`;
 }
 function getLegalMoveTargets(state, actor) {
   if (!canIssueAction(state, actor)) {
@@ -1169,10 +1265,13 @@ function applyMove(state, command) {
   const nextState = {
     ...state,
     players: nextPlayers,
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}\u79FB\u52A8\u5230${formatCoordDisplay(target)}`
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u79FB\u52A8`
+      pendingAnnouncement: null
     }
   };
   return { ok: true, state: nextState };
@@ -1212,10 +1311,13 @@ function applyBuild(state, command) {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}\u5728${formatCoordDisplay(target)}\u5EFA\u9020\u4E86\u751F\u547D\u4E0A\u9650\u4E3A${command.spirit}\u7684\u5899\u4F53`
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u5EFA\u9020`
+      pendingAnnouncement: null
     }
   };
   return { ok: true, state: nextState };
@@ -1233,16 +1335,19 @@ function applyScout(state, command) {
     return { ok: false, reason: "not enough spirit" };
   }
   const enemy = state.players[oppositeSide(actor)];
-  const scoutResult = isGrass(enemy.pos) ? "\u65E0\u6CD5\u88AB\u4FA6\u5BDF" : `\u5750\u6807\u4E3A(${enemy.pos.x + 1},${enemy.pos.y + 1})`;
+  const scoutResult = isGrass(enemy.pos) ? "\u76EE\u6807\u4F4D\u4E8E\u8349\u4E1B\u4E2D\uFF0C\u65E0\u6CD5\u88AB\u4FA6\u5BDF" : `\u76EE\u6807\u5750\u6807\u4E3A${formatCoordDisplay(enemy.pos)}`;
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= 1;
   const nextState = {
     ...state,
     players: nextPlayers,
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u4FA6\u5BDF\uFF0C${scoutResult}`
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u4FA6\u5BDF\uFF0C${scoutResult}`
+      pendingAnnouncement: null
     }
   };
   return { ok: true, state: nextState };
@@ -1284,11 +1389,14 @@ function applyAttack(state, command) {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
-    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}\u5BF9${formatCoordDisplay(target)}\u53D1\u52A8\u4E86\u666E\u901A\u653B\u51FB`,
+      ...damageAnnouncements
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u666E\u901A\u653B\u51FB\u3002`
+      pendingAnnouncement: null
     },
     winner
   };
@@ -1343,7 +1451,7 @@ function applyNeedle(state, command) {
     return { ok: false, reason: "invalid target coordinate" };
   }
   const ray = buildRayPath(self.pos, target);
-  if (ray.length === 0) {
+  if (!ray || ray.cells.length === 0) {
     return { ok: false, reason: "invalid needle direction" };
   }
   const enemySide = oppositeSide(actor);
@@ -1353,19 +1461,49 @@ function applyNeedle(state, command) {
   const projectiles = [];
   for (let index = 0; index < command.spirit; index += 1) {
     const traveled = [];
-    for (const cell of ray) {
-      traveled.push(cell);
-      if (isWallAliveInMap(nextWalls, cell)) {
-        applyWallDamage(nextPlayers, nextWalls, actor, cell, 1);
-        break;
+    let traveledExitT = 0;
+    let endT = ray.maxT;
+    let cellIndex = 0;
+    while (cellIndex < ray.cells.length) {
+      const groupEnterT = ray.cells[cellIndex].enterT;
+      const group = [];
+      while (cellIndex < ray.cells.length && Math.abs(ray.cells[cellIndex].enterT - groupEnterT) <= RAY_EPSILON) {
+        const hit = ray.cells[cellIndex];
+        group.push(hit);
+        traveled.push(hit.coord);
+        traveledExitT = Math.max(traveledExitT, hit.exitT);
+        cellIndex += 1;
       }
-      if (coordsEqual(nextPlayers[enemySide].pos, cell)) {
-        applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements);
+      let groupHit = false;
+      for (const hit of group) {
+        if (isWallAliveInMap(nextWalls, hit.coord)) {
+          applyWallDamage(nextPlayers, nextWalls, actor, hit.coord, 1);
+          groupHit = true;
+        }
+      }
+      for (const hit of group) {
+        if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
+          groupHit = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || groupHit;
+        }
+      }
+      if (groupHit) {
+        endT = Math.max(groupEnterT + RAY_EPSILON, traveledExitT);
         break;
       }
     }
+    if (traveledExitT > RAY_EPSILON && endT === ray.maxT) {
+      endT = traveledExitT;
+    }
+    const rayEnd = getRayPoint(ray, endT);
     projectiles.push(
-      buildProjectileEffect("needle", actor, nextPlayers[actor].pos, traveled, index * NEEDLE_INTERVAL_MS)
+      buildProjectileEffect(
+        "needle",
+        actor,
+        nextPlayers[actor].pos,
+        traveled,
+        index * NEEDLE_INTERVAL_MS,
+        rayEnd
+      )
     );
   }
   nextPlayers[actor].stats.spirit -= command.spirit;
@@ -1378,11 +1516,14 @@ function applyNeedle(state, command) {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
-    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}\u671D${formatCoordDisplay(target)}\u53D1\u5C04\u4E86\u5C01\u9B54\u9488`,
+      ...damageAnnouncements
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u53D1\u5C04\u4E86\u5C01\u9B54\u9488`
+      pendingAnnouncement: null
     },
     winner
   };
@@ -1418,7 +1559,7 @@ function applyAmulet(state, command) {
     return { ok: false, reason: "invalid target coordinate" };
   }
   const ray = buildRayPath(self.pos, target);
-  if (ray.length === 0) {
+  if (!ray || ray.cells.length === 0) {
     return { ok: false, reason: "invalid amulet direction" };
   }
   const enemySide = oppositeSide(actor);
@@ -1427,12 +1568,12 @@ function applyAmulet(state, command) {
   const damageAnnouncements = [];
   const traveled = [];
   let hitEnemy = false;
-  for (const cell of ray) {
-    traveled.push(cell);
-    if (isWallAliveInMap(nextWalls, cell)) {
-      applyWallDamage(nextPlayers, nextWalls, actor, cell, 1);
+  for (const hit of ray.cells) {
+    traveled.push(hit.coord);
+    if (isWallAliveInMap(nextWalls, hit.coord)) {
+      applyWallDamage(nextPlayers, nextWalls, actor, hit.coord, 1);
     }
-    if (coordsEqual(nextPlayers[enemySide].pos, cell)) {
+    if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
       hitEnemy = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || hitEnemy;
     }
   }
@@ -1450,11 +1591,14 @@ function applyAmulet(state, command) {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
-    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}\u671D${formatCoordDisplay(target)}\u53D1\u5C04\u4E86\u7B26\u672D`,
+      ...damageAnnouncements
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u53D1\u5C04\u4E86\u7B26\u672D`
+      pendingAnnouncement: null
     },
     winner
   };
@@ -1462,7 +1606,16 @@ function applyAmulet(state, command) {
     ok: true,
     state: nextState,
     effects: {
-      projectiles: [buildProjectileEffect("amulet", actor, nextPlayers[actor].pos, traveled, 0)]
+      projectiles: [
+        buildProjectileEffect(
+          "amulet",
+          actor,
+          nextPlayers[actor].pos,
+          traveled,
+          0,
+          getRayPoint(ray, ray.maxT)
+        )
+      ]
     }
   };
 }
@@ -1493,10 +1646,13 @@ function applyOrb(state, command) {
     state: {
       ...state,
       players: nextPlayers,
+      announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+        `${getSideLabel(actor)}\u83B7\u5F97\u4E86\u534A\u5F84\u4E3A${command.spirit}\u7684\u89C6\u91CE`
+      ]),
       turn: {
         ...state.turn,
         acted: true,
-        pendingAnnouncement: `${getSideLabel(actor)}\u83B7\u5F97\u4E86\u534A\u5F84\u4E3A${command.spirit}\u7684\u89C6\u91CE`
+        pendingAnnouncement: null
       }
     }
   };
@@ -1535,10 +1691,13 @@ function applyBlink(state, command) {
     state: {
       ...state,
       players: nextPlayers,
+      announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+        `${getSideLabel(actor)}\u95EA\u73B0\u5230\u4E86${formatCoordDisplay(target)}`
+      ]),
       turn: {
         ...state.turn,
         acted: true,
-        pendingAnnouncement: `${getSideLabel(actor)}\u95EA\u73B0\u5230\u4E86\u534A\u5F84\u4E3A${command.spirit}\u5185\u7684\u4E00\u683C`
+        pendingAnnouncement: null
       }
     }
   };
@@ -1553,6 +1712,22 @@ function decrementOrbWhenTurnStarts(players, enteringSide) {
     effect.orbVisionRadius = 0;
   }
 }
+function advanceTurnState(state, actor) {
+  const nextSide = oppositeSide(actor);
+  const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
+  const nextPlayers = clonePlayers(state.players);
+  decrementOrbWhenTurnStarts(nextPlayers, nextSide);
+  return {
+    ...state,
+    players: nextPlayers,
+    turn: {
+      side: nextSide,
+      round: nextRound,
+      acted: false,
+      pendingAnnouncement: null
+    }
+  };
+}
 function applyEndTurn(state, command) {
   if (command.type !== "endTurn") {
     return { ok: false, reason: "invalid endTurn command type" };
@@ -1564,52 +1739,72 @@ function applyEndTurn(state, command) {
   if (!canEndTurn(state, actor)) {
     return { ok: false, reason: "cannot end turn now" };
   }
-  const nextSide = oppositeSide(actor);
-  const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
-  const announcement = state.turn.pendingAnnouncement ?? (!state.turn.acted ? `${getSideLabel(actor)}\u9009\u62E9\u4E86\u7A7A\u8FC7` : null);
-  const nextPlayers = clonePlayers(state.players);
-  decrementOrbWhenTurnStarts(nextPlayers, nextSide);
-  const nextState = {
-    ...state,
-    players: nextPlayers,
-    announcements: announcement ? appendAnnouncements(state.announcements, [announcement]) : appendAnnouncements(state.announcements, []),
-    turn: {
-      side: nextSide,
-      round: nextRound,
-      acted: false,
-      pendingAnnouncement: null
-    }
+  if (state.turn.acted) {
+    return { ok: false, reason: "endTurn is pass-only after actions auto-end" };
+  }
+  return {
+    ok: true,
+    state: advanceTurnState(
+      {
+        ...state,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          `${getSideLabel(actor)}\u9009\u62E9\u4E86\u7A7A\u8FC7`
+        ])
+      },
+      actor
+    )
   };
-  return { ok: true, state: nextState };
 }
 function applyCommand(state, command) {
   if (state.winner) {
     return { ok: false, reason: "game has ended" };
   }
+  let applied;
   switch (command.type) {
     case "move":
-      return applyMove(state, command);
+      applied = applyMove(state, command);
+      break;
     case "build":
-      return applyBuild(state, command);
+      applied = applyBuild(state, command);
+      break;
     case "scout":
-      return applyScout(state, command);
+      applied = applyScout(state, command);
+      break;
     case "attack":
-      return applyAttack(state, command);
+      applied = applyAttack(state, command);
+      break;
     case "needle":
-      return applyNeedle(state, command);
+      applied = applyNeedle(state, command);
+      break;
     case "amulet":
-      return applyAmulet(state, command);
+      applied = applyAmulet(state, command);
+      break;
     case "orb":
-      return applyOrb(state, command);
+      applied = applyOrb(state, command);
+      break;
     case "blink":
-      return applyBlink(state, command);
+      applied = applyBlink(state, command);
+      break;
     case "unlockSkill":
-      return applyUnlockSkill(state, command);
+      applied = applyUnlockSkill(state, command);
+      break;
     case "endTurn":
-      return applyEndTurn(state, command);
+      applied = applyEndTurn(state, command);
+      break;
     default:
       return { ok: false, reason: "unsupported command" };
   }
+  if (!applied.ok) {
+    return applied;
+  }
+  if (command.type === "endTurn" || command.type === "unlockSkill" || applied.state.winner) {
+    return applied;
+  }
+  return {
+    ok: true,
+    state: advanceTurnState(applied.state, command.actor),
+    effects: applied.effects
+  };
 }
 function applyCommandEnvelope(state, envelope) {
   const expectedSeq = state.seq + 1;
@@ -1872,8 +2067,8 @@ ${logBox.textContent}`;
       const redVisibleCount = redView.cells.filter((cell) => cell.visible).length;
       const blueEnemyVisible = Boolean(blueView.pieces.red);
       const redEnemyVisible = Boolean(redView.pieces.blue);
-      const bluePos = coordToKey(state.players.blue.pos);
-      const redPos = coordToKey(state.players.red.pos);
+      const bluePos = coordToDisplayKey(state.players.blue.pos);
+      const redPos = coordToDisplayKey(state.players.red.pos);
       dualViewLineBlue.textContent = `\u84DD\u65B9\u89C6\u89D2: \u53EF\u89C1\u683C=${blueVisibleCount} \u654C\u65B9\u53EF\u89C1=${blueEnemyVisible ? "\u662F" : "\u5426"} \u81EA\u8EAB=${bluePos}`;
       dualViewLineRed.textContent = `\u7EA2\u65B9\u89C6\u89D2: \u53EF\u89C1\u683C=${redVisibleCount} \u654C\u65B9\u53EF\u89C1=${redEnemyVisible ? "\u662F" : "\u5426"} \u81EA\u8EAB=${redPos}`;
     }
@@ -2166,7 +2361,7 @@ function onBoardClick(state, coord, ctx) {
   return { next: { ...state } };
 }
 function onEndTurnClick(state, ctx) {
-  if (!ctx.connected || ctx.ballisticPending || !canEndTurn(ctx.game, ctx.localSide)) {
+  if (!ctx.connected || ctx.ballisticPending || ctx.game.turn.acted || !canEndTurn(ctx.game, ctx.localSide)) {
     return { next: { ...state } };
   }
   return {
@@ -6392,6 +6587,492 @@ function createPeerJsTransport(localPeerId, runtimeConfig) {
   return new PeerJsTransport(localPeerId, runtimeConfig);
 }
 
+// src/replay.ts
+var REPLAY_MAGIC = "RPY1";
+var TYPE_TO_CODE = {
+  move: "m",
+  build: "b",
+  scout: "s",
+  attack: "a",
+  endTurn: "e",
+  unlockSkill: "u",
+  needle: "n",
+  amulet: "h",
+  orb: "o",
+  blink: "l"
+};
+var CODE_TO_TYPE = {
+  m: "move",
+  b: "build",
+  s: "scout",
+  a: "attack",
+  e: "endTurn",
+  u: "unlockSkill",
+  n: "needle",
+  h: "amulet",
+  o: "orb",
+  l: "blink"
+};
+function sideToCode(side) {
+  return side === "blue" ? "b" : "r";
+}
+function codeToSide(code) {
+  if (code === "b") {
+    return "blue";
+  }
+  if (code === "r") {
+    return "red";
+  }
+  throw new Error(`invalid side code: ${code}`);
+}
+function skillToCode(skill) {
+  switch (skill) {
+    case "role1":
+      return "1";
+    case "role2":
+      return "2";
+    case "role3":
+      return "3";
+    case "role4":
+      return "4";
+    default:
+      return "0";
+  }
+}
+function codeToSkill(code) {
+  switch (code) {
+    case "1":
+      return "role1";
+    case "2":
+      return "role2";
+    case "3":
+      return "role3";
+    case "4":
+      return "role4";
+    default:
+      throw new Error(`invalid skill code: ${code}`);
+  }
+}
+function parseIntStrict(value, fieldName) {
+  if (!/^-?\d+$/.test(value)) {
+    throw new Error(`invalid ${fieldName}: ${value}`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`invalid ${fieldName}: ${value}`);
+  }
+  return parsed;
+}
+function encodeCommand(envelope) {
+  const seq = String(envelope.seq);
+  const code = TYPE_TO_CODE[envelope.command.type];
+  const actor = sideToCode(envelope.command.actor);
+  switch (envelope.command.type) {
+    case "move":
+    case "attack":
+    case "amulet":
+      return [seq, code, actor, envelope.command.to].join(",");
+    case "build":
+    case "needle":
+    case "blink":
+      return [seq, code, actor, envelope.command.to, String(envelope.command.spirit)].join(",");
+    case "scout":
+    case "endTurn":
+      return [seq, code, actor].join(",");
+    case "orb":
+      return [seq, code, actor, String(envelope.command.spirit)].join(",");
+    case "unlockSkill":
+      return [seq, code, actor, skillToCode(envelope.command.skill)].join(",");
+    default:
+      throw new Error("unsupported command");
+  }
+}
+function decodeCommand(line) {
+  const parts = line.split(",");
+  if (parts.length < 3) {
+    throw new Error(`invalid replay line: ${line}`);
+  }
+  const seq = parseIntStrict(parts[0], "seq");
+  const type = CODE_TO_TYPE[parts[1]];
+  if (!type) {
+    throw new Error(`invalid command type code: ${parts[1]}`);
+  }
+  const actor = codeToSide(parts[2]);
+  let command;
+  switch (type) {
+    case "move":
+    case "attack":
+    case "amulet": {
+      const to = parts[3];
+      if (!to || !keyToCoord(to)) {
+        throw new Error(`invalid target coordinate: ${to ?? ""}`);
+      }
+      if (type === "move") {
+        command = { type, actor, to };
+      } else if (type === "attack") {
+        command = { type, actor, to };
+      } else {
+        command = { type, actor, to, spirit: 1 };
+      }
+      break;
+    }
+    case "build":
+    case "needle":
+    case "blink": {
+      const to = parts[3];
+      const spiritRaw = parts[4] ?? "";
+      if (!to || !keyToCoord(to)) {
+        throw new Error(`invalid target coordinate: ${to ?? ""}`);
+      }
+      const spirit = parseIntStrict(spiritRaw, "spirit");
+      command = { type, actor, to, spirit };
+      break;
+    }
+    case "scout":
+      command = { type, actor };
+      break;
+    case "endTurn":
+      command = { type, actor };
+      break;
+    case "orb": {
+      const spirit = parseIntStrict(parts[3] ?? "", "spirit");
+      command = { type, actor, spirit };
+      break;
+    }
+    case "unlockSkill": {
+      const skill = codeToSkill(parts[3] ?? "");
+      command = { type, actor, skill };
+      break;
+    }
+    default:
+      throw new Error("unsupported command");
+  }
+  return {
+    kind: "command",
+    seq,
+    command
+  };
+}
+function packStats(state, side) {
+  const stats = state.players[side].stats;
+  return [
+    stats.hp,
+    stats.spirit,
+    stats.maxSpirit,
+    stats.atk,
+    stats.vision,
+    stats.moveRange,
+    stats.gold
+  ];
+}
+function unpackStats(base, side, packed) {
+  const stats = base.players[side].stats;
+  stats.hp = packed[0];
+  stats.spirit = packed[1];
+  stats.maxSpirit = packed[2];
+  stats.atk = packed[3];
+  stats.vision = packed[4];
+  stats.moveRange = packed[5];
+  stats.gold = packed[6];
+}
+function encodeInitialStats(state) {
+  const values = [...packStats(state, "blue"), ...packStats(state, "red")];
+  return `I,${values.join(",")}`;
+}
+function decodeInitialStats(line) {
+  const parts = line.split(",");
+  if (parts.length !== 15 || parts[0] !== "I") {
+    throw new Error("invalid replay initial stats line");
+  }
+  const values = parts.slice(1).map((value) => parseIntStrict(value, "initial stat"));
+  const blue = values.slice(0, 7);
+  const red = values.slice(7, 14);
+  return { blue, red };
+}
+function serializeReplay(envelopes, initialState) {
+  const lines = [REPLAY_MAGIC, encodeInitialStats(initialState)];
+  for (const envelope of envelopes) {
+    lines.push(encodeCommand(envelope));
+  }
+  return lines.join("\n");
+}
+function deserializeReplay(content) {
+  const lines = content.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+  if (lines.length === 0 || lines[0] !== REPLAY_MAGIC) {
+    throw new Error("invalid replay header");
+  }
+  let initialStats = null;
+  let index = 1;
+  if (lines[index]?.startsWith("I,")) {
+    initialStats = decodeInitialStats(lines[index]);
+    index += 1;
+  }
+  const commands = [];
+  for (let i = index; i < lines.length; i += 1) {
+    commands.push(decodeCommand(lines[i]));
+  }
+  return { initialStats, commands };
+}
+function buildReplayFilename(date = /* @__PURE__ */ new Date()) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return [
+    "thchess",
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`,
+    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+  ].join("-") + ".rpy";
+}
+function buildReplayStates(parsed) {
+  const first = createInitialState();
+  if (parsed.initialStats) {
+    unpackStats(first, "blue", parsed.initialStats.blue);
+    unpackStats(first, "red", parsed.initialStats.red);
+  }
+  const states = [first];
+  for (const envelope of parsed.commands) {
+    const prev = states[states.length - 1];
+    const applied = applyCommandEnvelope(prev, envelope);
+    if (!applied.ok) {
+      throw new Error(`seq=${envelope.seq} replay apply failed: ${applied.reason}`);
+    }
+    states.push(applied.state);
+  }
+  return states;
+}
+function terrainChar(terrain) {
+  switch (terrain) {
+    case "grass":
+      return ",";
+    case "spawnBlue":
+      return "B";
+    case "spawnRed":
+      return "R";
+    default:
+      return ".";
+  }
+}
+function pieceAt(coord, side, state) {
+  return coordsEqual(state.players[side].pos, coord);
+}
+function renderPerspectiveBoard(state, side) {
+  const perspective = buildPerspective(state, side);
+  const lines = [];
+  lines.push(`    ${COL_LABELS.join(" ")}`);
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    let row = `${String(y + 1).padStart(2, " ")}  `;
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const cell = perspective.cells[y * BOARD_WIDTH + x];
+      let ch = terrainChar(cell.terrain);
+      if (!cell.visible) {
+        ch = "?";
+      } else if (pieceAt(cell.coord, "blue", state)) {
+        ch = "1";
+      } else if (pieceAt(cell.coord, "red", state)) {
+        ch = "2";
+      } else if (cell.hasWall) {
+        ch = "#";
+      }
+      row += ch;
+      if (x < BOARD_WIDTH - 1) {
+        row += " ";
+      }
+    }
+    lines.push(row);
+  }
+  lines.push("\u56FE\u4F8B: 1=P1 2=P2 #=\u5899 ,=\u8349 ?=\u6218\u4E89\u8FF7\u96FE");
+  return lines.join("\n");
+}
+function actionText(command) {
+  const toDisplay = (key) => {
+    const coord = keyToCoord(key);
+    return coord ? `${COL_LABELS[coord.x]}:${coord.y + 1}` : key;
+  };
+  switch (command.type) {
+    case "move":
+      return `\u79FB\u52A8 -> ${toDisplay(command.to)}`;
+    case "build":
+      return `\u5EFA\u9020 -> ${toDisplay(command.to)} (\u7075\u529B${command.spirit})`;
+    case "scout":
+      return "\u4FA6\u5BDF";
+    case "attack":
+      return `\u666E\u653B -> ${toDisplay(command.to)}`;
+    case "needle":
+      return `\u5C01\u9B54\u9488 -> ${toDisplay(command.to)} (\u7075\u529B${command.spirit})`;
+    case "amulet":
+      return `\u7B26\u672D -> ${toDisplay(command.to)}`;
+    case "orb":
+      return `\u9634\u9633\u7389 (\u7075\u529B${command.spirit})`;
+    case "blink":
+      return `\u95EA\u73B0 -> ${toDisplay(command.to)} (\u7075\u529B${command.spirit})`;
+    case "unlockSkill":
+      return `\u89E3\u9501${command.skill}`;
+    case "endTurn":
+      return "\u7A7A\u8FC7";
+    default:
+      return command.type;
+  }
+}
+function bootstrapReplayPage(appRoot, debugRoot) {
+  appRoot.innerHTML = "";
+  debugRoot.innerHTML = "";
+  debugRoot.style.display = "none";
+  const shell = document.createElement("section");
+  shell.className = "replay-shell";
+  const title = document.createElement("h2");
+  title.textContent = "THChess Replay";
+  title.style.margin = "0";
+  shell.appendChild(title);
+  const toolbar = document.createElement("div");
+  toolbar.className = "replay-toolbar";
+  shell.appendChild(toolbar);
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = ".rpy,text/plain";
+  toolbar.appendChild(fileInput);
+  const controls = document.createElement("div");
+  controls.className = "replay-controls";
+  toolbar.appendChild(controls);
+  const prevBtn = document.createElement("button");
+  prevBtn.className = "debug-btn";
+  prevBtn.textContent = "\u4E0A\u4E00\u6B65";
+  controls.appendChild(prevBtn);
+  const nextBtn = document.createElement("button");
+  nextBtn.className = "debug-btn";
+  nextBtn.textContent = "\u4E0B\u4E00\u6B65";
+  controls.appendChild(nextBtn);
+  const stepRange = document.createElement("input");
+  stepRange.type = "range";
+  stepRange.min = "0";
+  stepRange.max = "0";
+  stepRange.value = "0";
+  stepRange.style.width = "220px";
+  controls.appendChild(stepRange);
+  const stepLabel = document.createElement("span");
+  stepLabel.className = "replay-info";
+  stepLabel.textContent = "\u6B65\u6570 0/0";
+  toolbar.appendChild(stepLabel);
+  const info = document.createElement("div");
+  info.className = "replay-info";
+  info.textContent = "\u8BF7\u9009\u62E9 .rpy \u6587\u4EF6";
+  shell.appendChild(info);
+  const panels = document.createElement("div");
+  panels.className = "replay-panels";
+  shell.appendChild(panels);
+  const bluePanel = document.createElement("section");
+  bluePanel.className = "replay-panel";
+  panels.appendChild(bluePanel);
+  const blueTitle = document.createElement("h3");
+  blueTitle.className = "panel-title";
+  blueTitle.style.borderBottom = "none";
+  blueTitle.style.padding = "0 0 6px 0";
+  blueTitle.textContent = "P1 \u84DD\u65B9\u89C6\u89D2";
+  bluePanel.appendChild(blueTitle);
+  const blueBoard = document.createElement("pre");
+  blueBoard.className = "replay-board";
+  bluePanel.appendChild(blueBoard);
+  const redPanel = document.createElement("section");
+  redPanel.className = "replay-panel";
+  panels.appendChild(redPanel);
+  const redTitle = document.createElement("h3");
+  redTitle.className = "panel-title";
+  redTitle.style.borderBottom = "none";
+  redTitle.style.padding = "0 0 6px 0";
+  redTitle.textContent = "P2 \u7EA2\u65B9\u89C6\u89D2";
+  redPanel.appendChild(redTitle);
+  const redBoard = document.createElement("pre");
+  redBoard.className = "replay-board";
+  redPanel.appendChild(redBoard);
+  const announcePanel = document.createElement("section");
+  announcePanel.className = "panel announcement-panel";
+  shell.appendChild(announcePanel);
+  const announceTitle = document.createElement("h3");
+  announceTitle.className = "panel-title";
+  announceTitle.textContent = "\u516C\u544A\u8BB0\u5F55";
+  announcePanel.appendChild(announceTitle);
+  const announceList = document.createElement("div");
+  announceList.className = "announcement-list";
+  announcePanel.appendChild(announceList);
+  appRoot.appendChild(shell);
+  let commands = [];
+  let states = [createInitialState()];
+  let step = 0;
+  const render = () => {
+    if (states.length === 0) {
+      return;
+    }
+    if (step < 0) {
+      step = 0;
+    }
+    if (step >= states.length) {
+      step = states.length - 1;
+    }
+    const state = states[step];
+    stepLabel.textContent = `\u6B65\u6570 ${step}/${Math.max(0, states.length - 1)}`;
+    stepRange.max = String(Math.max(0, states.length - 1));
+    stepRange.value = String(step);
+    prevBtn.disabled = step <= 0;
+    nextBtn.disabled = step >= states.length - 1;
+    const commandText = step > 0 ? actionText(commands[step - 1].command) : "\u521D\u59CB\u5C40\u9762";
+    info.textContent = `seq=${state.seq} | \u56DE\u5408=${state.turn.round} | \u5F53\u524D=${state.turn.side === "blue" ? "P1" : "P2"} | \u64CD\u4F5C=${commandText}` + (state.winner ? ` | \u8D62\u5BB6=${state.winner === "blue" ? "P1 \u84DD\u65B9" : "P2 \u7EA2\u65B9"}` : "");
+    blueBoard.textContent = renderPerspectiveBoard(state, "blue");
+    redBoard.textContent = renderPerspectiveBoard(state, "red");
+    announceList.innerHTML = "";
+    const history = [...state.announcements].reverse();
+    if (history.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "announcement-item";
+      empty.textContent = "\u6682\u65E0\u516C\u544A";
+      announceList.appendChild(empty);
+    } else {
+      for (const entry of history) {
+        const item = document.createElement("div");
+        item.className = "announcement-item";
+        const sideMatch = entry.match(/^\[回合\d+P([12]):/);
+        if (sideMatch?.[1] === "1") {
+          item.classList.add("announcement-blue");
+        } else if (sideMatch?.[1] === "2") {
+          item.classList.add("announcement-red");
+        }
+        item.textContent = entry;
+        announceList.appendChild(item);
+      }
+    }
+  };
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) {
+      return;
+    }
+    try {
+      const content = await file.text();
+      const parsed = deserializeReplay(content);
+      commands = parsed.commands;
+      states = buildReplayStates(parsed);
+      step = states.length - 1;
+      render();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      info.textContent = `\u56DE\u653E\u6587\u4EF6\u89E3\u6790\u5931\u8D25: ${message}`;
+      commands = [];
+      states = [createInitialState()];
+      step = 0;
+      render();
+    }
+  });
+  prevBtn.addEventListener("click", () => {
+    step -= 1;
+    render();
+  });
+  nextBtn.addEventListener("click", () => {
+    step += 1;
+    render();
+  });
+  stepRange.addEventListener("input", () => {
+    step = Number(stepRange.value);
+    render();
+  });
+  render();
+}
+
 // src/view.ts
 var SKILLS = [
   { id: "move", label: "\u79FB\u52D5", basic: true },
@@ -6755,7 +7436,7 @@ async function createGameView(root) {
   skillLayout.appendChild(skillActions);
   const endTurnButton = document.createElement("button");
   endTurnButton.className = "end-turn-btn hollow-frame";
-  endTurnButton.textContent = "\u7ED3\u675F\u56DE\u5408";
+  endTurnButton.textContent = "\u7A7A\u8FC7";
   endTurnButton.addEventListener("click", () => {
     handlers.onEndTurnClick();
   });
@@ -6817,25 +7498,19 @@ async function createGameView(root) {
     if (elapsed < 0) {
       return null;
     }
-    const segments = animation.points.length - 1;
-    if (segments <= 0) {
+    const dx = animation.end.x - animation.start.x;
+    const dy = animation.end.y - animation.start.y;
+    if (Math.abs(dx) < 1e-4 && Math.abs(dy) < 1e-4) {
       return null;
     }
     const t = Math.max(0, Math.min(1, elapsed / animation.durationMs));
     if (t >= 1) {
       return null;
     }
-    const progress = t * segments;
-    const index = Math.floor(progress);
-    const frac = Math.min(1, progress - index);
-    const from = animation.points[index];
-    const to = animation.points[Math.min(index + 1, animation.points.length - 1)];
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
     return {
       pos: {
-        x: from.x + dx * frac,
-        y: from.y + dy * frac
+        x: animation.start.x + dx * t,
+        y: animation.start.y + dy * t
       },
       angle: Math.atan2(dy, dx) + Math.PI / 2
     };
@@ -7037,8 +7712,8 @@ async function createGameView(root) {
         }
       }
       const image = animation.kind === "needle" ? assets.needle : assets.amulet;
-      const px = left + (renderState.pos.x + 0.5) * tile;
-      const py = top + (renderState.pos.y + 0.5) * tile;
+      const px = left + renderState.pos.x * tile;
+      const py = top + renderState.pos.y * tile;
       const size = Math.floor(tile * (animation.kind === "needle" ? 0.52 : 0.58));
       ctx.save();
       ctx.translate(px, py);
@@ -7155,7 +7830,7 @@ async function createGameView(root) {
       badge.src = src;
       badge.style.display = "block";
     }
-    endTurnButton.disabled = !payload.connected || payload.ballisticPending || !canEndTurn(payload.state, payload.localSide);
+    endTurnButton.disabled = !payload.connected || payload.ballisticPending || payload.state.turn.acted || !canEndTurn(payload.state, payload.localSide);
     refreshSpiritPopup(payload);
   }
   function renderTurn(payload) {
@@ -7175,7 +7850,7 @@ async function createGameView(root) {
     statusHp.textContent = `\u751F\u547D\u503C: ${unit.stats.hp}`;
     statusSpirit.textContent = `\u5F53\u524D\u7075\u529B/\u7075\u529B\u4E0A\u9650: ${unit.stats.spirit}/${unit.stats.maxSpirit}`;
     statusAtk.textContent = `\u653B\u51FB\u529B: ${unit.stats.atk}`;
-    statusCoord.textContent = `\u5750\u6807: ${coordToKey(unit.pos)}`;
+    statusCoord.textContent = `\u5750\u6807: ${coordToDisplayKey(unit.pos)}`;
     statusGold.textContent = `\u91D1\u5E01: ${unit.stats.gold}`;
   }
   function renderAnnouncement(payload) {
@@ -7192,6 +7867,12 @@ async function createGameView(root) {
     for (const entry of history) {
       const item = document.createElement("div");
       item.className = "announcement-item";
+      const sideMatch = entry.match(/^\[回合\d+P([12]):/);
+      if (sideMatch?.[1] === "1") {
+        item.classList.add("announcement-blue");
+      } else if (sideMatch?.[1] === "2") {
+        item.classList.add("announcement-red");
+      }
       item.textContent = entry;
       announcementList.appendChild(item);
     }
@@ -7286,16 +7967,20 @@ async function createGameView(root) {
             path.push(coord);
           }
         }
-        const points = [origin, ...path];
+        const start = { x: origin.x + 0.5, y: origin.y + 0.5 };
+        const fallbackEnd = path.length > 0 ? path[path.length - 1] : origin;
+        const rayEnd = projectile.rayEnd;
+        const end = rayEnd && Number.isFinite(rayEnd.x) && Number.isFinite(rayEnd.y) ? { x: rayEnd.x, y: rayEnd.y } : { x: fallbackEnd.x + 0.5, y: fallbackEnd.y + 0.5 };
         valid.push({
           id: ++projectileId,
           batchId,
           kind: projectile.kind,
           actor: projectile.actor,
-          points,
+          start,
+          end,
           startedAt: now,
           delayMs: Math.max(0, projectile.delayMs),
-          durationMs: Math.max(220, Math.max(1, points.length - 1) * 90),
+          durationMs: Math.max(220, Math.max(1, path.length) * 90),
           done: false
         });
       }
@@ -7354,18 +8039,44 @@ async function bootstrap() {
   if (!appRoot || !debugRoot) {
     throw new Error("missing #app or #debug-root");
   }
-  const debugEnabled = new URLSearchParams(window.location.search).has("debug");
+  const searchParams = new URLSearchParams(window.location.search);
+  if (searchParams.has("replay")) {
+    bootstrapReplayPage(appRoot, debugRoot);
+    return;
+  }
+  const debugEnabled = searchParams.has("debug");
+  const testMode = searchParams.has("test");
   const view = await createGameView(appRoot);
   const debugPanel = createDebugPanel(debugRoot, { debugEnabled });
+  const replayDownloadLine = document.createElement("div");
+  replayDownloadLine.className = "debug-line";
+  replayDownloadLine.textContent = "\u5BF9\u5C40\u7ED3\u675F\u540E\u53EF\u4E0B\u8F7D .rpy \u590D\u76D8\u6587\u4EF6";
+  replayDownloadLine.style.marginTop = "8px";
+  const replayDownloadLink = document.createElement("a");
+  replayDownloadLink.textContent = "\u4E0B\u8F7D replay.rpy";
+  replayDownloadLink.style.display = "none";
+  replayDownloadLink.style.color = "#9ec8ff";
+  replayDownloadLink.style.textDecoration = "underline";
+  replayDownloadLine.appendChild(document.createTextNode(" "));
+  replayDownloadLine.appendChild(replayDownloadLink);
+  debugRoot.appendChild(replayDownloadLine);
   let state = createInitialState();
-  let localSide = debugPanel.getSelectedSide();
+  if (testMode) {
+    state.players.blue.stats.gold = 400;
+    state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
+  }
+  const replayInitialState = JSON.parse(JSON.stringify(state));
+  let localSide = testMode ? "blue" : debugPanel.getSelectedSide();
   let inputState = createInitialInputState();
   let transport = null;
-  let isConnected = false;
+  let isConnected = testMode;
   let ballisticPending = false;
   let pendingRemoteId = null;
   let transportSeq = 0;
   let sessionMode = null;
+  let testAiTimer = null;
+  let replayDownloadUrl = null;
+  const replayCommands = [];
   const peerRuntimeConfig = readPeerRuntimeConfig();
   const render = () => {
     const ctx = { game: state, localSide, connected: isConnected, ballisticPending };
@@ -7381,6 +8092,7 @@ async function bootstrap() {
       spiritSelector: getSpiritSelectorView(inputState, ctx)
     });
     debugPanel.updateDualView(state);
+    scheduleTestAiTurn();
   };
   const applyEnvelope = (envelope, source) => {
     const prevState = state;
@@ -7390,6 +8102,7 @@ async function bootstrap() {
       return false;
     }
     state = outcome.state;
+    replayCommands.push(envelope);
     inputState = createInitialInputState();
     if (envelope.command.type === "endTurn") {
       ballisticPending = false;
@@ -7413,10 +8126,26 @@ async function bootstrap() {
         }
       });
     }
+    if (!prevState.winner && state.winner) {
+      if (replayDownloadUrl) {
+        URL.revokeObjectURL(replayDownloadUrl);
+      }
+      const replayContent = serializeReplay(replayCommands, replayInitialState);
+      replayDownloadUrl = URL.createObjectURL(
+        new Blob([replayContent], { type: "text/plain;charset=utf-8" })
+      );
+      replayDownloadLink.href = replayDownloadUrl;
+      replayDownloadLink.download = buildReplayFilename(/* @__PURE__ */ new Date());
+      replayDownloadLink.style.display = "inline";
+      replayDownloadLine.firstChild.textContent = "\u5BF9\u5C40\u7ED3\u675F\uFF0C\u590D\u76D8\u6587\u4EF6\u5DF2\u751F\u6210\uFF1A";
+    }
     render();
     return true;
   };
   const sendEnvelope = (envelope) => {
+    if (testMode) {
+      return;
+    }
     if (!transport || !isConnected) {
       debugPanel.log("\u672A\u8FDE\u63A5\uFF0C\u547D\u4EE4\u672A\u53D1\u9001");
       return;
@@ -7433,6 +8162,10 @@ async function bootstrap() {
       debugPanel.log("\u8FDE\u63A5\u672A\u5B8C\u6210\uFF0C\u6682\u65F6\u65E0\u6CD5\u64CD\u4F5C");
       return;
     }
+    if (testMode && command.actor !== localSide) {
+      debugPanel.log("test\u6A21\u5F0F\u4E0B\u4EC5\u652F\u6301\u64CD\u4F5CP1/\u84DD\u65B9");
+      return;
+    }
     const envelope = {
       kind: "command",
       seq: state.seq + 1,
@@ -7441,6 +8174,46 @@ async function bootstrap() {
     if (applyEnvelope(envelope, "local")) {
       sendEnvelope(envelope);
     }
+  };
+  const runTestAiTurn = () => {
+    if (!testMode || state.winner || state.turn.side !== "red" || ballisticPending) {
+      return;
+    }
+    const legalMoves = getLegalMoveTargets(state, "red");
+    if (legalMoves.length > 0) {
+      const target = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+      const moveEnvelope = {
+        kind: "command",
+        seq: state.seq + 1,
+        command: createMoveCommand("red", target)
+      };
+      applyEnvelope(moveEnvelope, "local");
+      return;
+    }
+    if (!state.winner && state.turn.side === "red" && !state.turn.acted) {
+      const endTurnEnvelope = {
+        kind: "command",
+        seq: state.seq + 1,
+        command: createEndTurnCommand("red")
+      };
+      applyEnvelope(endTurnEnvelope, "local");
+    }
+  };
+  const scheduleTestAiTurn = () => {
+    if (!testMode) {
+      return;
+    }
+    if (testAiTimer !== null) {
+      window.clearTimeout(testAiTimer);
+      testAiTimer = null;
+    }
+    if (state.winner || ballisticPending || state.turn.side !== "red" || state.turn.acted) {
+      return;
+    }
+    testAiTimer = window.setTimeout(() => {
+      testAiTimer = null;
+      runTestAiTurn();
+    }, 220);
   };
   const applyTransportStatus = (status, mySeq) => {
     if (mySeq !== transportSeq) {
@@ -7567,6 +8340,14 @@ async function bootstrap() {
     }
   });
   debugPanel.onSideChange((side) => {
+    if (testMode) {
+      localSide = "blue";
+      inputState = createInitialInputState();
+      ballisticPending = false;
+      debugPanel.log("test\u6A21\u5F0F\u4E0B\u672C\u673A\u63A7\u5236\u65B9\u56FA\u5B9A\u4E3A P1/\u84DD\u65B9");
+      render();
+      return;
+    }
     localSide = side;
     inputState = createInitialInputState();
     ballisticPending = false;
@@ -7576,6 +8357,10 @@ async function bootstrap() {
     render();
   });
   debugPanel.onConnectAction((request) => {
+    if (testMode) {
+      debugPanel.log("test\u6A21\u5F0F\u65E0\u9700\u8054\u673A");
+      return;
+    }
     debugPanel.setInviteHash("");
     inputState = createInitialInputState();
     ballisticPending = false;
@@ -7597,6 +8382,10 @@ async function bootstrap() {
     debugPanel.log("\u5DF2\u542F\u52A8\u8FDE\u63A5\u6A21\u5F0F\uFF0C\u6B63\u5728\u8FDE\u63A5\u8FDC\u7AEF");
   });
   debugPanel.onStartLoopback(() => {
+    if (testMode) {
+      debugPanel.log("test\u6A21\u5F0F\u65E0\u9700\u8054\u673A");
+      return;
+    }
     sessionMode = null;
     pendingRemoteId = null;
     ballisticPending = false;
@@ -7604,6 +8393,10 @@ async function bootstrap() {
     bindTransport(loopback);
     loopback.connect("self");
   });
+  if (testMode) {
+    debugPanel.setTransportStatus({ type: "connected", detail: "test mode local" });
+    debugPanel.log("test\u6A21\u5F0F\u5DF2\u542F\u7528\uFF1AP1\u4E3A\u73A9\u5BB6\uFF0CP2\u4E3A\u968F\u673A\u79FB\u52A8AI");
+  }
   render();
 }
 bootstrap().catch((error) => {

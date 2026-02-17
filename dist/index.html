@@ -140,6 +140,14 @@
         line-height: 1.35;
       }
 
+      .announcement-item.announcement-blue {
+        background: rgba(60, 130, 255, 0.24);
+      }
+
+      .announcement-item.announcement-red {
+        background: rgba(255, 86, 86, 0.24);
+      }
+
       .skill-panel {
         position: relative;
         display: flex;
@@ -258,6 +266,7 @@
         padding: 6px;
         font-size: 11px;
         line-height: 1.35;
+        pointer-events: none;
       }
 
       .unlock-popup {
@@ -443,6 +452,52 @@
         white-space: pre-wrap;
       }
 
+      .replay-shell {
+        width: min(96vw, 1200px);
+        display: grid;
+        gap: 10px;
+      }
+
+      .replay-toolbar {
+        display: grid;
+        grid-template-columns: 1fr auto auto auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .replay-controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .replay-panels {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .replay-panel {
+        border: 2px solid #fff;
+        padding: 8px;
+      }
+
+      .replay-board {
+        margin: 0;
+        padding: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        background: #000;
+        white-space: pre;
+        overflow: auto;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+
+      .replay-info {
+        font-size: 12px;
+        color: var(--soft);
+      }
+
       @media (max-width: 900px) {
         .game-shell {
           width: 96vw;
@@ -477,6 +532,14 @@
 
         .debug-controls {
           grid-template-columns: 1fr 1fr;
+        }
+
+        .replay-toolbar {
+          grid-template-columns: 1fr;
+        }
+
+        .replay-panels {
+          grid-template-columns: 1fr;
         }
       }
     </style>

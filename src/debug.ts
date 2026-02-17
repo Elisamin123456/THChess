@@ -1,5 +1,5 @@
 import { buildPerspective } from "./game";
-import { GameState, Side, coordToKey } from "./protocol";
+import { GameState, Side, coordToDisplayKey } from "./protocol";
 import { TransportStatus } from "./transport";
 
 export interface ConnectRequest {
@@ -259,8 +259,8 @@ export function createDebugPanel(root: HTMLElement, options: DebugPanelOptions):
       const redVisibleCount = redView.cells.filter((cell) => cell.visible).length;
       const blueEnemyVisible = Boolean(blueView.pieces.red);
       const redEnemyVisible = Boolean(redView.pieces.blue);
-      const bluePos = coordToKey(state.players.blue.pos);
-      const redPos = coordToKey(state.players.red.pos);
+      const bluePos = coordToDisplayKey(state.players.blue.pos);
+      const redPos = coordToDisplayKey(state.players.red.pos);
 
       dualViewLineBlue.textContent =
         `\u84dd\u65b9\u89c6\u89d2: \u53ef\u89c1\u683c=${blueVisibleCount} ` +

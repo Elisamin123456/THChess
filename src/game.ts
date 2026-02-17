@@ -32,6 +32,7 @@ const RED_SPAWN: Coord = { x: 10, y: 4 }; // K5
 const SKILL_UNLOCK_COST = 100;
 const NEEDLE_INTERVAL_MS = 140;
 const MAX_ANNOUNCEMENTS = 80;
+const RAY_EPSILON = 1e-9;
 
 const INITIAL_WALL_COORDS: Coord[] = [];
 for (let y = 3; y <= 8; y += 1) {
@@ -76,7 +77,7 @@ function createUnit(side: Side, pos: Coord, initialSpirit: number): UnitState {
     side,
     pos: { ...pos },
     stats: {
-      hp: 20,
+      hp: 10,
       spirit: initialSpirit,
       maxSpirit: 25,
       atk: 1,
@@ -297,55 +298,156 @@ function getVisionRadius(state: GameState, side: Side): number {
   return unit.stats.vision;
 }
 
-function buildRayPath(from: Coord, to: Coord): Coord[] {
+interface RayPathCell {
+  coord: Coord;
+  enterT: number;
+  exitT: number;
+}
+
+interface RayPath {
+  cells: RayPathCell[];
+  startX: number;
+  startY: number;
+  dirX: number;
+  dirY: number;
+  maxT: number;
+}
+
+function computeRayMaxT(startX: number, startY: number, dirX: number, dirY: number): number {
+  let maxT = Number.POSITIVE_INFINITY;
+  if (dirX > 0) {
+    maxT = Math.min(maxT, (BOARD_WIDTH - startX) / dirX);
+  } else if (dirX < 0) {
+    maxT = Math.min(maxT, (0 - startX) / dirX);
+  }
+  if (dirY > 0) {
+    maxT = Math.min(maxT, (BOARD_HEIGHT - startY) / dirY);
+  } else if (dirY < 0) {
+    maxT = Math.min(maxT, (0 - startY) / dirY);
+  }
+  return maxT;
+}
+
+function intersectRayCell(
+  startX: number,
+  startY: number,
+  dirX: number,
+  dirY: number,
+  maxT: number,
+  cellX: number,
+  cellY: number,
+): { enterT: number; exitT: number } | null {
+  const minX = cellX;
+  const maxX = cellX + 1;
+  const minY = cellY;
+  const maxY = cellY + 1;
+  let enterT = 0;
+  let exitT = maxT;
+
+  if (Math.abs(dirX) <= RAY_EPSILON) {
+    if (startX < minX || startX > maxX) {
+      return null;
+    }
+  } else {
+    const tx1 = (minX - startX) / dirX;
+    const tx2 = (maxX - startX) / dirX;
+    const txEnter = Math.min(tx1, tx2);
+    const txExit = Math.max(tx1, tx2);
+    enterT = Math.max(enterT, txEnter);
+    exitT = Math.min(exitT, txExit);
+  }
+
+  if (Math.abs(dirY) <= RAY_EPSILON) {
+    if (startY < minY || startY > maxY) {
+      return null;
+    }
+  } else {
+    const ty1 = (minY - startY) / dirY;
+    const ty2 = (maxY - startY) / dirY;
+    const tyEnter = Math.min(ty1, ty2);
+    const tyExit = Math.max(ty1, ty2);
+    enterT = Math.max(enterT, tyEnter);
+    exitT = Math.min(exitT, tyExit);
+  }
+
+  if (exitT < enterT - RAY_EPSILON) {
+    return null;
+  }
+  if (exitT <= RAY_EPSILON) {
+    return null;
+  }
+
+  return {
+    enterT: Math.max(0, enterT),
+    exitT: Math.max(0, Math.min(maxT, exitT)),
+  };
+}
+
+function buildRayPath(from: Coord, to: Coord): RayPath | null {
   const startX = from.x + 0.5;
   const startY = from.y + 0.5;
   const targetX = to.x + 0.5;
   const targetY = to.y + 0.5;
   const dirX = targetX - startX;
   const dirY = targetY - startY;
-  if (dirX === 0 && dirY === 0) {
-    return [];
+  if (Math.abs(dirX) <= RAY_EPSILON && Math.abs(dirY) <= RAY_EPSILON) {
+    return null;
   }
 
-  let x = from.x;
-  let y = from.y;
-  const stepX = dirX > 0 ? 1 : dirX < 0 ? -1 : 0;
-  const stepY = dirY > 0 ? 1 : dirY < 0 ? -1 : 0;
-
-  const tDeltaX = dirX === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / dirX);
-  const tDeltaY = dirY === 0 ? Number.POSITIVE_INFINITY : Math.abs(1 / dirY);
-
-  const nextBoundaryX = stepX > 0 ? x + 1 : x;
-  const nextBoundaryY = stepY > 0 ? y + 1 : y;
-  let tMaxX =
-    dirX === 0 ? Number.POSITIVE_INFINITY : Math.abs((nextBoundaryX - startX) / dirX);
-  let tMaxY =
-    dirY === 0 ? Number.POSITIVE_INFINITY : Math.abs((nextBoundaryY - startY) / dirY);
-
-  const path: Coord[] = [];
-  while (true) {
-    if (tMaxX < tMaxY) {
-      x += stepX;
-      tMaxX += tDeltaX;
-    } else if (tMaxY < tMaxX) {
-      y += stepY;
-      tMaxY += tDeltaY;
-    } else {
-      x += stepX;
-      y += stepY;
-      tMaxX += tDeltaX;
-      tMaxY += tDeltaY;
-    }
-
-    const cell: Coord = { x, y };
-    if (!isCoordInBounds(cell)) {
-      break;
-    }
-    path.push(cell);
+  const maxT = computeRayMaxT(startX, startY, dirX, dirY);
+  if (!Number.isFinite(maxT) || maxT <= 0) {
+    return null;
   }
 
-  return path;
+  const cells: RayPathCell[] = [];
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      if (x === from.x && y === from.y) {
+        continue;
+      }
+      const hit = intersectRayCell(startX, startY, dirX, dirY, maxT, x, y);
+      if (!hit) {
+        continue;
+      }
+      cells.push({
+        coord: { x, y },
+        enterT: hit.enterT,
+        exitT: hit.exitT,
+      });
+    }
+  }
+
+  cells.sort((a, b) => {
+    const enterDelta = a.enterT - b.enterT;
+    if (Math.abs(enterDelta) > RAY_EPSILON) {
+      return enterDelta;
+    }
+    const exitDelta = a.exitT - b.exitT;
+    if (Math.abs(exitDelta) > RAY_EPSILON) {
+      return exitDelta;
+    }
+    if (a.coord.y !== b.coord.y) {
+      return a.coord.y - b.coord.y;
+    }
+    return a.coord.x - b.coord.x;
+  });
+
+  return {
+    cells,
+    startX,
+    startY,
+    dirX,
+    dirY,
+    maxT,
+  };
+}
+
+function getRayPoint(path: RayPath, t: number): Coord {
+  const clampedT = Math.max(0, Math.min(path.maxT, t));
+  return {
+    x: path.startX + path.dirX * clampedT,
+    y: path.startY + path.dirY * clampedT,
+  };
 }
 
 function applyEnemyDamage(
@@ -384,7 +486,7 @@ function applyWallDamage(
   }
   const hpAfter = wall.hp - amount;
   if (hpAfter <= 0) {
-    const reward = 4 * wall.maxHp;
+    const reward = 10 * wall.maxHp;
     players[actor].stats.gold += reward;
     walls[key] = {
       ...wall,
@@ -406,6 +508,7 @@ function buildProjectileEffect(
   origin: Coord,
   path: Coord[],
   delayMs: number,
+  rayEnd?: Coord,
 ): ProjectileEffect {
   return {
     kind,
@@ -413,6 +516,7 @@ function buildProjectileEffect(
     origin: coordToKey(origin),
     path: path.map((cell) => coordToKey(cell)),
     delayMs,
+    ...(rayEnd ? { rayEnd } : {}),
   };
 }
 
@@ -428,6 +532,30 @@ function appendAnnouncements(base: string[], additions: string[]): string[] {
     return merged;
   }
   return merged.slice(merged.length - MAX_ANNOUNCEMENTS);
+}
+
+function formatTurnAnnouncement(round: number, side: Side, text: string): string {
+  const playerNo = side === "blue" ? 1 : 2;
+  return `[回合${round}P${playerNo}: ${text}]`;
+}
+
+function appendTurnAnnouncements(
+  base: string[],
+  round: number,
+  side: Side,
+  additions: string[],
+): string[] {
+  if (additions.length === 0) {
+    return appendAnnouncements(base, []);
+  }
+  return appendAnnouncements(
+    base,
+    additions.map((text) => formatTurnAnnouncement(round, side, text)),
+  );
+}
+
+function formatCoordDisplay(coord: Coord): string {
+  return `${COL_LABELS[coord.x]}:${coord.y + 1}`;
 }
 
 export function getLegalMoveTargets(state: GameState, actor: Side): Coord[] {
@@ -598,10 +726,13 @@ function applyMove(state: GameState, command: Command): ApplyOutcome {
   const nextState: GameState = {
     ...state,
     players: nextPlayers,
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}移动到${formatCoordDisplay(target)}`,
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u8fdb\u884c\u4e86\u79fb\u52a8`,
+      pendingAnnouncement: null,
     },
   };
   return { ok: true, state: nextState };
@@ -646,10 +777,13 @@ function applyBuild(state: GameState, command: Command): ApplyOutcome {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}在${formatCoordDisplay(target)}建造了生命上限为${command.spirit}的墙体`,
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u8fdb\u884c\u4e86\u5efa\u9020`,
+      pendingAnnouncement: null,
     },
   };
   return { ok: true, state: nextState };
@@ -670,8 +804,8 @@ function applyScout(state: GameState, command: Command): ApplyOutcome {
 
   const enemy = state.players[oppositeSide(actor)];
   const scoutResult = isGrass(enemy.pos)
-    ? "\u65e0\u6cd5\u88ab\u4fa6\u5bdf"
-    : `\u5750\u6807\u4e3a(${enemy.pos.x + 1},${enemy.pos.y + 1})`;
+    ? "目标位于草丛中，无法被侦察"
+    : `目标坐标为${formatCoordDisplay(enemy.pos)}`;
 
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= 1;
@@ -679,10 +813,13 @@ function applyScout(state: GameState, command: Command): ApplyOutcome {
   const nextState: GameState = {
     ...state,
     players: nextPlayers,
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}进行了侦察，${scoutResult}`,
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u8fdb\u884c\u4e86\u4fa6\u5bdf\uff0c${scoutResult}`,
+      pendingAnnouncement: null,
     },
   };
   return { ok: true, state: nextState };
@@ -730,11 +867,14 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
-    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}对${formatCoordDisplay(target)}发动了普通攻击`,
+      ...damageAnnouncements,
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u8fdb\u884c\u4e86\u666e\u901a\u653b\u51fb\u3002`,
+      pendingAnnouncement: null,
     },
     winner,
   };
@@ -796,7 +936,7 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid target coordinate" };
   }
   const ray = buildRayPath(self.pos, target);
-  if (ray.length === 0) {
+  if (!ray || ray.cells.length === 0) {
     return { ok: false, reason: "invalid needle direction" };
   }
 
@@ -808,19 +948,58 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
 
   for (let index = 0; index < command.spirit; index += 1) {
     const traveled: Coord[] = [];
-    for (const cell of ray) {
-      traveled.push(cell);
-      if (isWallAliveInMap(nextWalls, cell)) {
-        applyWallDamage(nextPlayers, nextWalls, actor, cell, 1);
-        break;
+    let traveledExitT = 0;
+    let endT = ray.maxT;
+    let cellIndex = 0;
+
+    while (cellIndex < ray.cells.length) {
+      const groupEnterT = ray.cells[cellIndex].enterT;
+      const group: RayPathCell[] = [];
+
+      while (
+        cellIndex < ray.cells.length &&
+        Math.abs(ray.cells[cellIndex].enterT - groupEnterT) <= RAY_EPSILON
+      ) {
+        const hit = ray.cells[cellIndex];
+        group.push(hit);
+        traveled.push(hit.coord);
+        traveledExitT = Math.max(traveledExitT, hit.exitT);
+        cellIndex += 1;
       }
-      if (coordsEqual(nextPlayers[enemySide].pos, cell)) {
-        applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements);
+
+      let groupHit = false;
+      for (const hit of group) {
+        if (isWallAliveInMap(nextWalls, hit.coord)) {
+          applyWallDamage(nextPlayers, nextWalls, actor, hit.coord, 1);
+          groupHit = true;
+        }
+      }
+      for (const hit of group) {
+        if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
+          groupHit = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || groupHit;
+        }
+      }
+
+      if (groupHit) {
+        endT = Math.max(groupEnterT + RAY_EPSILON, traveledExitT);
         break;
       }
     }
+
+    if (traveledExitT > RAY_EPSILON && endT === ray.maxT) {
+      endT = traveledExitT;
+    }
+
+    const rayEnd = getRayPoint(ray, endT);
     projectiles.push(
-      buildProjectileEffect("needle", actor, nextPlayers[actor].pos, traveled, index * NEEDLE_INTERVAL_MS),
+      buildProjectileEffect(
+        "needle",
+        actor,
+        nextPlayers[actor].pos,
+        traveled,
+        index * NEEDLE_INTERVAL_MS,
+        rayEnd,
+      ),
     );
   }
 
@@ -836,11 +1015,14 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
-    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}朝${formatCoordDisplay(target)}发射了封魔针`,
+      ...damageAnnouncements,
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u53d1\u5c04\u4e86\u5c01\u9b54\u9488`,
+      pendingAnnouncement: null,
     },
     winner,
   };
@@ -881,7 +1063,7 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid target coordinate" };
   }
   const ray = buildRayPath(self.pos, target);
-  if (ray.length === 0) {
+  if (!ray || ray.cells.length === 0) {
     return { ok: false, reason: "invalid amulet direction" };
   }
 
@@ -892,12 +1074,12 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
   const traveled: Coord[] = [];
   let hitEnemy = false;
 
-  for (const cell of ray) {
-    traveled.push(cell);
-    if (isWallAliveInMap(nextWalls, cell)) {
-      applyWallDamage(nextPlayers, nextWalls, actor, cell, 1);
+  for (const hit of ray.cells) {
+    traveled.push(hit.coord);
+    if (isWallAliveInMap(nextWalls, hit.coord)) {
+      applyWallDamage(nextPlayers, nextWalls, actor, hit.coord, 1);
     }
-    if (coordsEqual(nextPlayers[enemySide].pos, cell)) {
+    if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
       hitEnemy = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || hitEnemy;
     }
   }
@@ -918,11 +1100,14 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
-    announcements: appendAnnouncements(state.announcements, damageAnnouncements),
+    announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+      `${getSideLabel(actor)}朝${formatCoordDisplay(target)}发射了符札`,
+      ...damageAnnouncements,
+    ]),
     turn: {
       ...state.turn,
       acted: true,
-      pendingAnnouncement: `${getSideLabel(actor)}\u53d1\u5c04\u4e86\u7b26\u672d`,
+      pendingAnnouncement: null,
     },
     winner,
   };
@@ -931,7 +1116,16 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
     ok: true,
     state: nextState,
     effects: {
-      projectiles: [buildProjectileEffect("amulet", actor, nextPlayers[actor].pos, traveled, 0)],
+      projectiles: [
+        buildProjectileEffect(
+          "amulet",
+          actor,
+          nextPlayers[actor].pos,
+          traveled,
+          0,
+          getRayPoint(ray, ray.maxT),
+        ),
+      ],
     },
   };
 }
@@ -966,10 +1160,13 @@ function applyOrb(state: GameState, command: Command): ApplyOutcome {
     state: {
       ...state,
       players: nextPlayers,
+      announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+        `${getSideLabel(actor)}获得了半径为${command.spirit}的视野`,
+      ]),
       turn: {
         ...state.turn,
         acted: true,
-        pendingAnnouncement: `${getSideLabel(actor)}\u83b7\u5f97\u4e86\u534a\u5f84\u4e3a${command.spirit}\u7684\u89c6\u91ce`,
+        pendingAnnouncement: null,
       },
     },
   };
@@ -1013,10 +1210,13 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
     state: {
       ...state,
       players: nextPlayers,
+      announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+        `${getSideLabel(actor)}闪现到了${formatCoordDisplay(target)}`,
+      ]),
       turn: {
         ...state.turn,
         acted: true,
-        pendingAnnouncement: `${getSideLabel(actor)}\u95ea\u73b0\u5230\u4e86\u534a\u5f84\u4e3a${command.spirit}\u5185\u7684\u4e00\u683c`,
+        pendingAnnouncement: null,
       },
     },
   };
@@ -1033,6 +1233,23 @@ function decrementOrbWhenTurnStarts(players: Record<Side, UnitState>, enteringSi
   }
 }
 
+function advanceTurnState(state: GameState, actor: Side): GameState {
+  const nextSide = oppositeSide(actor);
+  const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
+  const nextPlayers = clonePlayers(state.players);
+  decrementOrbWhenTurnStarts(nextPlayers, nextSide);
+  return {
+    ...state,
+    players: nextPlayers,
+    turn: {
+      side: nextSide,
+      round: nextRound,
+      acted: false,
+      pendingAnnouncement: null,
+    },
+  };
+}
+
 function applyEndTurn(state: GameState, command: Command): ApplyOutcome {
   if (command.type !== "endTurn") {
     return { ok: false, reason: "invalid endTurn command type" };
@@ -1044,59 +1261,77 @@ function applyEndTurn(state: GameState, command: Command): ApplyOutcome {
   if (!canEndTurn(state, actor)) {
     return { ok: false, reason: "cannot end turn now" };
   }
+  if (state.turn.acted) {
+    return { ok: false, reason: "endTurn is pass-only after actions auto-end" };
+  }
 
-  const nextSide = oppositeSide(actor);
-  const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
-  const announcement =
-    state.turn.pendingAnnouncement ?? (!state.turn.acted ? `${getSideLabel(actor)}\u9009\u62e9\u4e86\u7a7a\u8fc7` : null);
-
-  const nextPlayers = clonePlayers(state.players);
-  decrementOrbWhenTurnStarts(nextPlayers, nextSide);
-
-  const nextState: GameState = {
-    ...state,
-    players: nextPlayers,
-    announcements: announcement
-      ? appendAnnouncements(state.announcements, [announcement])
-      : appendAnnouncements(state.announcements, []),
-    turn: {
-      side: nextSide,
-      round: nextRound,
-      acted: false,
-      pendingAnnouncement: null,
-    },
+  return {
+    ok: true,
+    state: advanceTurnState(
+      {
+        ...state,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          `${getSideLabel(actor)}选择了空过`,
+        ]),
+      },
+      actor,
+    ),
   };
-  return { ok: true, state: nextState };
 }
 
 function applyCommand(state: GameState, command: Command): ApplyOutcome {
   if (state.winner) {
     return { ok: false, reason: "game has ended" };
   }
+  let applied: ApplyOutcome;
   switch (command.type) {
     case "move":
-      return applyMove(state, command);
+      applied = applyMove(state, command);
+      break;
     case "build":
-      return applyBuild(state, command);
+      applied = applyBuild(state, command);
+      break;
     case "scout":
-      return applyScout(state, command);
+      applied = applyScout(state, command);
+      break;
     case "attack":
-      return applyAttack(state, command);
+      applied = applyAttack(state, command);
+      break;
     case "needle":
-      return applyNeedle(state, command);
+      applied = applyNeedle(state, command);
+      break;
     case "amulet":
-      return applyAmulet(state, command);
+      applied = applyAmulet(state, command);
+      break;
     case "orb":
-      return applyOrb(state, command);
+      applied = applyOrb(state, command);
+      break;
     case "blink":
-      return applyBlink(state, command);
+      applied = applyBlink(state, command);
+      break;
     case "unlockSkill":
-      return applyUnlockSkill(state, command);
+      applied = applyUnlockSkill(state, command);
+      break;
     case "endTurn":
-      return applyEndTurn(state, command);
+      applied = applyEndTurn(state, command);
+      break;
     default:
       return { ok: false, reason: "unsupported command" };
   }
+
+  if (!applied.ok) {
+    return applied;
+  }
+
+  if (command.type === "endTurn" || command.type === "unlockSkill" || applied.state.winner) {
+    return applied;
+  }
+
+  return {
+    ok: true,
+    state: advanceTurnState(applied.state, command.actor),
+    effects: applied.effects,
+  };
 }
 
 export function applyCommandEnvelope(state: GameState, envelope: CommandEnvelope): ApplyOutcome {
@@ -1205,9 +1440,9 @@ export function computeStateHash(state: GameState): string {
 }
 
 export function formatCoordXY(coord: Coord): string {
-  return `(${coord.x + 1},${coord.y + 1})`;
+  return formatCoordDisplay(coord);
 }
 
 export function formatCoordAlphaNumeric(coord: Coord): string {
-  return `${COL_LABELS[coord.x]}${coord.y + 1}`;
+  return formatCoordDisplay(coord);
 }

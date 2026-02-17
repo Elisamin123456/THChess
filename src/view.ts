@@ -12,6 +12,7 @@ import {
   RoleSkillId,
   Side,
   SkillId,
+  coordToDisplayKey,
   coordToKey,
   getSideLabel,
   isRoleSkillId,
@@ -65,7 +66,8 @@ interface ProjectileAnimation {
   batchId: number;
   kind: "needle" | "amulet";
   actor: Side;
-  points: Coord[];
+  start: Coord;
+  end: Coord;
   startedAt: number;
   delayMs: number;
   durationMs: number;
@@ -545,7 +547,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
 
   const endTurnButton = document.createElement("button");
   endTurnButton.className = "end-turn-btn hollow-frame";
-  endTurnButton.textContent = "\u7ed3\u675f\u56de\u5408";
+  endTurnButton.textContent = "\u7a7a\u8fc7";
   endTurnButton.addEventListener("click", () => {
     handlers.onEndTurnClick();
   });
@@ -621,8 +623,9 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       return null;
     }
 
-    const segments = animation.points.length - 1;
-    if (segments <= 0) {
+    const dx = animation.end.x - animation.start.x;
+    const dy = animation.end.y - animation.start.y;
+    if (Math.abs(dx) < 0.0001 && Math.abs(dy) < 0.0001) {
       return null;
     }
 
@@ -631,18 +634,10 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       return null;
     }
 
-    const progress = t * segments;
-    const index = Math.floor(progress);
-    const frac = Math.min(1, progress - index);
-    const from = animation.points[index];
-    const to = animation.points[Math.min(index + 1, animation.points.length - 1)];
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-
     return {
       pos: {
-        x: from.x + dx * frac,
-        y: from.y + dy * frac,
+        x: animation.start.x + dx * t,
+        y: animation.start.y + dy * t,
       },
       angle: Math.atan2(dy, dx) + Math.PI / 2,
     };
@@ -869,8 +864,8 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
         }
       }
       const image = animation.kind === "needle" ? assets.needle : assets.amulet;
-      const px = left + (renderState.pos.x + 0.5) * tile;
-      const py = top + (renderState.pos.y + 0.5) * tile;
+      const px = left + renderState.pos.x * tile;
+      const py = top + renderState.pos.y * tile;
       const size = Math.floor(tile * (animation.kind === "needle" ? 0.52 : 0.58));
 
       ctx.save();
@@ -1009,6 +1004,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     endTurnButton.disabled =
       !payload.connected ||
       payload.ballisticPending ||
+      payload.state.turn.acted ||
       !canEndTurn(payload.state, payload.localSide);
 
     refreshSpiritPopup(payload);
@@ -1036,7 +1032,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     statusSpirit.textContent =
       `\u5f53\u524d\u7075\u529b/\u7075\u529b\u4e0a\u9650: ${unit.stats.spirit}/${unit.stats.maxSpirit}`;
     statusAtk.textContent = `\u653b\u51fb\u529b: ${unit.stats.atk}`;
-    statusCoord.textContent = `\u5750\u6807: ${coordToKey(unit.pos)}`;
+    statusCoord.textContent = `\u5750\u6807: ${coordToDisplayKey(unit.pos)}`;
     statusGold.textContent = `\u91d1\u5e01: ${unit.stats.gold}`;
   }
 
@@ -1054,6 +1050,12 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     for (const entry of history) {
       const item = document.createElement("div");
       item.className = "announcement-item";
+      const sideMatch = entry.match(/^\[回合\d+P([12]):/);
+      if (sideMatch?.[1] === "1") {
+        item.classList.add("announcement-blue");
+      } else if (sideMatch?.[1] === "2") {
+        item.classList.add("announcement-red");
+      }
       item.textContent = entry;
       announcementList.appendChild(item);
     }
@@ -1160,16 +1162,24 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
           }
         }
 
-        const points = [origin, ...path];
+        const start: Coord = { x: origin.x + 0.5, y: origin.y + 0.5 };
+        const fallbackEnd = path.length > 0 ? path[path.length - 1] : origin;
+        const rayEnd = projectile.rayEnd;
+        const end: Coord =
+          rayEnd && Number.isFinite(rayEnd.x) && Number.isFinite(rayEnd.y)
+            ? { x: rayEnd.x, y: rayEnd.y }
+            : { x: fallbackEnd.x + 0.5, y: fallbackEnd.y + 0.5 };
+
         valid.push({
           id: ++projectileId,
           batchId,
           kind: projectile.kind,
           actor: projectile.actor,
-          points,
+          start,
+          end,
           startedAt: now,
           delayMs: Math.max(0, projectile.delayMs),
-          durationMs: Math.max(220, Math.max(1, points.length - 1) * 90),
+          durationMs: Math.max(220, Math.max(1, path.length) * 90),
           done: false,
         });
       }

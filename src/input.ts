@@ -365,7 +365,12 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
 }
 
 export function onEndTurnClick(state: InputState, ctx: InputContext): InputResult {
-  if (!ctx.connected || ctx.ballisticPending || !canEndTurn(ctx.game, ctx.localSide)) {
+  if (
+    !ctx.connected ||
+    ctx.ballisticPending ||
+    ctx.game.turn.acted ||
+    !canEndTurn(ctx.game, ctx.localSide)
+  ) {
     return { next: { ...state } };
   }
   return {

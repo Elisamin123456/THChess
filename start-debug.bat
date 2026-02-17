@@ -48,11 +48,15 @@ echo.
 echo Select launch mode:
 echo   1. Normal mode
 echo   2. Debug mode (^?debug)
-set /p MODE_CHOICE=Input 1 or 2 [default 1]: 
+echo   3. Test mode (^?test)
+echo   4. Replay mode (^?replay)
+set /p MODE_CHOICE=Input 1, 2, 3 or 4 [default 1]: 
 if "%MODE_CHOICE%"=="" set MODE_CHOICE=1
 
 set QUERY=
 if "%MODE_CHOICE%"=="2" set QUERY=?debug
+if "%MODE_CHOICE%"=="3" set QUERY=?test
+if "%MODE_CHOICE%"=="4" set QUERY=?replay
 
 echo [THchess] launching Vite dev server...
 start "THchess Dev Server" cmd /k "cd /d %cd% && npm run dev -- --host 127.0.0.1 --port 5173"
