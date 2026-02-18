@@ -38,6 +38,8 @@ interface Assets {
   chars: Record<MechId, HTMLImageElement>;
   needle: HTMLImageElement;
   amulet: HTMLImageElement;
+  wind: HTMLImageElement;
+  sigil: HTMLImageElement;
   orbEffect: HTMLImageElement;
   roleIconsByMech: Record<MechId, Partial<Record<RoleSkillId, SkillIconSet>>>;
   numbers: Map<number, HTMLImageElement>;
@@ -75,7 +77,7 @@ interface AttackAnimation {
 interface ProjectileAnimation {
   id: number;
   batchId: number;
-  kind: "needle" | "amulet";
+  kind: "needle" | "amulet" | "wind";
   actor: Side;
   start: Coord;
   end: Coord;
@@ -96,6 +98,11 @@ interface BpCardLayout {
   top: number;
   width: number;
   height: number;
+}
+
+interface TooltipContent {
+  title: string;
+  body: string;
 }
 
 export interface ViewHandlers {
@@ -146,20 +153,31 @@ const SKILLS: SkillConfig[] = [
   { id: "role4", label: "", basic: false },
 ];
 
-const BASIC_SKILL_TOOLTIPS: Record<"move" | "build" | "scout" | "attack", string> = {
-  move:
-    "Move. Make one 8-direction step (range 1). Orthogonal move grants +1 spirit; diagonal grants none. Cannot move onto walls or units.",
-  build:
-    "Build. Spend N spirit to create a wall with HP N / Max HP N within range N. Walls cannot be built on occupied cells.",
-  scout: "Scout. Spend 1 spirit to reveal enemy coordinate immediately.",
-  attack: "Attack. Spend 0 spirit to perform a range-1 attack.",
+// 所有技能介绍文本不可更改。
+const BASIC_SKILL_TOOLTIPS: Record<"move" | "build" | "scout" | "attack", TooltipContent> = {
+  move: {
+    title: "移动",
+    body: "向8向移动，正方向移动后增加1灵力，斜向移动不增加灵力。",
+  },
+  build: {
+    title: "建造",
+    body: "消费N灵力，在距离为N的范围内建造生命值上限为N的墙体。墙体无法建造在任意单位之上。",
+  },
+  scout: {
+    title: "侦察",
+    body: "消费1灵力，立刻获得对方坐标。",
+  },
+  attack: {
+    title: "普通攻击",
+    body: "进行一次距离为1的攻击造成等同于击力的伤害。",
+  },
 };
 
 const ROLE_SLOT_LABELS: Record<RoleSkillId, string> = {
-  role1: "Skill 1",
-  role2: "Skill 2",
-  role3: "Skill 3",
-  role4: "Skill 4",
+  role1: "技能1",
+  role2: "技能2",
+  role3: "技能3",
+  role4: "技能4",
 };
 
 const VARIABLE_SPIRIT_SKILLS = new Set<SkillId>(["build", "role1", "role3", "role4"]);
@@ -173,17 +191,48 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-async function loadRoleIconSet(prefix: string): Promise<SkillIconSet> {
+async function loadRoleIconSet(baseDir: string, prefix: string): Promise<SkillIconSet> {
   const [normal, selected, selecting] = await Promise.all([
-    loadImage(`./assets/skill/reimu/${prefix}.png`),
-    loadImage(`./assets/skill/reimu/${prefix}_selected.png`),
-    loadImage(`./assets/skill/reimu/${prefix}_selecting.png`),
+    loadImage(`${baseDir}/${prefix}.png`),
+    loadImage(`${baseDir}/${prefix}_selected.png`),
+    loadImage(`${baseDir}/${prefix}_selecting.png`),
   ]);
   return { normal, selected, selecting };
 }
 
+async function loadSingleRoleIcon(src: string): Promise<SkillIconSet> {
+  const icon = await loadImage(src);
+  return {
+    normal: icon,
+    selected: icon,
+    selecting: icon,
+  };
+}
+
 async function loadAssets(): Promise<Assets> {
-  const [ground, grass, spawn, wall, reimu, marisa, koishi, aya, needle, amulet, orbEffect, role1, role2, role3, role4] =
+  const [
+    ground,
+    grass,
+    spawn,
+    wall,
+    reimu,
+    marisa,
+    koishi,
+    aya,
+    needle,
+    amulet,
+    wind,
+    sigil,
+    orbEffect,
+    reimuRole1,
+    reimuRole2,
+    reimuRole3,
+    reimuRole4,
+    ayaRole1,
+    ayaRole2,
+    ayaRole3,
+    ayaRole4,
+  ] =
     await Promise.all([
       loadImage("./assets/tiles/ground.png"),
       loadImage("./assets/tiles/grass.png"),
@@ -195,11 +244,17 @@ async function loadAssets(): Promise<Assets> {
       loadImage("./assets/char/aya.png"),
       loadImage("./assets/bullet/reimu/reimuneedle.png"),
       loadImage("./assets/bullet/reimu/reimuamulet.png"),
+      loadImage("./assets/bullet/aya/wind.png"),
+      loadImage("./assets/bullet/aya/sigil.png"),
       loadImage("./assets/bullet/reimu/yinyangorb.png"),
-      loadRoleIconSet("reimu_1"),
-      loadRoleIconSet("reimu_2"),
-      loadRoleIconSet("reimu_3"),
-      loadRoleIconSet("reimu_4"),
+      loadRoleIconSet("./assets/skill/reimu", "reimu_1"),
+      loadRoleIconSet("./assets/skill/reimu", "reimu_2"),
+      loadRoleIconSet("./assets/skill/reimu", "reimu_3"),
+      loadRoleIconSet("./assets/skill/reimu", "reimu_4"),
+      loadSingleRoleIcon("./assets/skill/aya/aya1.png"),
+      loadSingleRoleIcon("./assets/skill/aya/aya2.png"),
+      loadSingleRoleIcon("./assets/skill/aya/aya3.png"),
+      loadSingleRoleIcon("./assets/skill/aya/aya4.png"),
     ]);
 
   const numbers = new Map<number, HTMLImageElement>();
@@ -230,17 +285,24 @@ async function loadAssets(): Promise<Assets> {
     },
     needle,
     amulet,
+    wind,
+    sigil,
     orbEffect,
     roleIconsByMech: {
       reimu: {
-        role1,
-        role2,
-        role3,
-        role4,
+        role1: reimuRole1,
+        role2: reimuRole2,
+        role3: reimuRole3,
+        role4: reimuRole4,
       },
       marisa: {},
       koishi: {},
-      aya: {},
+      aya: {
+        role1: ayaRole1,
+        role2: ayaRole2,
+        role3: ayaRole3,
+        role4: ayaRole4,
+      },
     },
     numbers,
     numberSrc,
@@ -319,8 +381,14 @@ function isVariableSkill(skill: SkillId | null): boolean {
   return Boolean(skill && VARIABLE_SPIRIT_SKILLS.has(skill));
 }
 
-function isRayIndicatorSkill(skill: SkillId | null): boolean {
-  return skill === "role1" || skill === "role2" || skill === "role4";
+function isRayIndicatorSkill(skill: SkillId | null, mechId: MechId | null): boolean {
+  if (skill === "role1" || skill === "role4") {
+    return true;
+  }
+  if (skill === "role2") {
+    return mechId !== "aya";
+  }
+  return false;
 }
 
 export async function createGameView(root: HTMLElement): Promise<GameView> {
@@ -439,6 +507,12 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   for (const roleSkillId of ["role1", "role2", "role3", "role4"] as RoleSkillId[]) {
     const item = document.createElement("div");
     item.className = "bp-skill-item hollow-frame";
+    item.addEventListener("mouseenter", () => {
+      showTooltip(roleSkillId, item);
+    });
+    item.addEventListener("mouseleave", () => {
+      hideTooltip();
+    });
     bpSkillGrid.appendChild(item);
     bpSkillItems.set(roleSkillId, item);
   }
@@ -449,6 +523,11 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   const tooltip = document.createElement("div");
   tooltip.className = "skill-tooltip";
   tooltip.style.display = "none";
+  const tooltipTitle = document.createElement("div");
+  tooltipTitle.className = "skill-tooltip-title";
+  const tooltipBody = document.createElement("div");
+  tooltipBody.className = "skill-tooltip-body";
+  tooltip.append(tooltipTitle, tooltipBody);
   skillPanel.appendChild(tooltip);
 
   const unlockPopup = document.createElement("div");
@@ -496,36 +575,55 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     return lastPayload.state.players[lastPayload.localSide].mechId;
   }
 
-  function getTooltipText(skill: SkillId): string {
+  function getTooltipContent(skill: SkillId): TooltipContent {
     if (skill === "move" || skill === "build" || skill === "scout" || skill === "attack") {
       return BASIC_SKILL_TOOLTIPS[skill];
     }
     const mechId = resolvePreviewMechForSkillPanel();
     if (!mechId) {
-      return "Please select a mech first.";
+      return {
+        title: "技能说明",
+        body: "请先在BP界面选择机体。",
+      };
     }
     const roleSkill = getRoleSkillDefinition(mechId, skill);
     if (!roleSkill.implemented) {
-      return roleSkill.name ? `${roleSkill.name}` + "\nDescription pending." : "This role skill is not implemented for this mech.";
+      return {
+        title: roleSkill.name || ROLE_SLOT_LABELS[skill],
+        body: "该机体暂无此技能说明。",
+      };
     }
-    return roleSkill.description ? `${roleSkill.name}\n${roleSkill.description}` : roleSkill.name;
+    return {
+      title: roleSkill.name || ROLE_SLOT_LABELS[skill],
+      body: roleSkill.description,
+    };
   }
 
   function showTooltip(skill: SkillId, anchor: HTMLElement): void {
-    const text = getTooltipText(skill);
-    if (!text) {
+    const content = getTooltipContent(skill);
+    if (!content.title && !content.body) {
       return;
     }
-    tooltip.textContent = text;
+    tooltipTitle.textContent = content.title;
+    tooltipBody.textContent = content.body;
     tooltip.style.display = "block";
 
     const panelRect = skillPanel.getBoundingClientRect();
     const anchorRect = anchor.getBoundingClientRect();
-    const tooltipWidth = 210;
-    const left = anchorRect.left - panelRect.left + (anchorRect.width - tooltipWidth) * 0.5;
-    const top = anchorRect.top - panelRect.top - 52;
-    tooltip.style.left = `${Math.max(0, left)}px`;
-    tooltip.style.top = `${Math.max(0, top)}px`;
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    const leftRaw = anchorRect.left - panelRect.left + (anchorRect.width - tooltipWidth) * 0.5;
+    const maxLeft = Math.max(0, panelRect.width - tooltipWidth);
+    const left = Math.min(maxLeft, Math.max(0, leftRaw));
+
+    let top = anchorRect.top - panelRect.top - tooltipHeight - 6;
+    if (top < 0) {
+      top = anchorRect.bottom - panelRect.top + 6;
+    }
+    const maxTop = Math.max(0, panelRect.height - tooltipHeight);
+
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${Math.min(maxTop, Math.max(0, top))}px`;
   }
 
   function showUnlockPopup(skill: RoleSkillId, anchor: HTMLElement): void {
@@ -537,6 +635,8 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       !lastPayload.state.winner &&
       lastPayload.connected &&
       lastPayload.state.turn.side === lastPayload.localSide &&
+      !lastPayload.state.turn.acted &&
+      lastPayload.state.turn.pendingAction === null &&
       isRoleSkillImplemented(unit.mechId, skill) &&
       !unit.skills[skill] &&
       unit.stats.gold >= 100;
@@ -870,6 +970,29 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       }
     }
 
+    for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+      for (let x = 0; x < BOARD_WIDTH; x += 1) {
+        const cell = getCell(payload.perspective.cells, x, y);
+        if (!cell.visible || !cell.hasWall) {
+          continue;
+        }
+        const wallState = payload.state.walls[coordToKey(cell.coord)];
+        if (!wallState?.alive || !wallState.ayaSigil) {
+          continue;
+        }
+        const px = left + x * tile;
+        const py = top + y * tile;
+        const size = Math.floor(tile * 0.56);
+        ctx.drawImage(
+          assets.sigil,
+          px + Math.floor((tile - size) * 0.5),
+          py + Math.floor((tile - size) * 0.5),
+          size,
+          size,
+        );
+      }
+    }
+
     const now = performance.now();
 
     const drawPiece = (side: Side): void => {
@@ -886,6 +1009,16 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       const unit = payload.state.players[side];
       const charImage = assets.chars[unit.mechId] ?? assets.chars.reimu;
       ctx.drawImage(charImage, px + pad, py + pad, tile - pad * 2, tile - pad * 2);
+      if (unit.effects.ayaSigil) {
+        const markSize = Math.floor(tile * 0.42);
+        ctx.drawImage(
+          assets.sigil,
+          px + Math.floor((tile - markSize) * 0.5),
+          py + Math.floor((tile - markSize) * 0.5),
+          markSize,
+          markSize,
+        );
+      }
       ctx.strokeStyle = side === "blue" ? "#58a8ff" : "#ff6565";
       ctx.lineWidth = Math.max(2, Math.floor(tile * 0.08));
       ctx.strokeRect(px + 2, py + 2, tile - 4, tile - 4);
@@ -912,7 +1045,8 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     drawPiece("red");
 
     const activeSkill = payload.input.activeSkill;
-    if (isRayIndicatorSkill(activeSkill) && hoverCoord) {
+    const selfMech = payload.state.players[payload.localSide].mechId;
+    if (isRayIndicatorSkill(activeSkill, selfMech) && hoverCoord) {
       const self = payload.state.players[payload.localSide].pos;
       const hoverLeft = left + hoverCoord.x * tile;
       const hoverTop = top + hoverCoord.y * tile;
@@ -972,10 +1106,12 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
           continue;
         }
       }
-      const image = animation.kind === "needle" ? assets.needle : assets.amulet;
+      const image = animation.kind === "needle" ? assets.needle : animation.kind === "wind" ? assets.wind : assets.amulet;
       const px = left + renderState.pos.x * tile;
       const py = top + renderState.pos.y * tile;
-      const size = Math.floor(tile * (animation.kind === "needle" ? 0.52 : 0.58));
+      const size = Math.floor(
+        tile * (animation.kind === "needle" ? 0.52 : animation.kind === "wind" ? 0.62 : 0.58),
+      );
 
       ctx.save();
       ctx.translate(px, py);
@@ -1051,7 +1187,10 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       return;
     }
     hoverCoord = nextHover;
-    if (lastPayload && isRayIndicatorSkill(lastPayload.input.activeSkill)) {
+    if (
+      lastPayload &&
+      isRayIndicatorSkill(lastPayload.input.activeSkill, lastPayload.state.players[lastPayload.localSide].mechId)
+    ) {
       render(lastPayload);
     }
   });
@@ -1070,7 +1209,10 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       return;
     }
     hoverCoord = null;
-    if (lastPayload && isRayIndicatorSkill(lastPayload.input.activeSkill)) {
+    if (
+      lastPayload &&
+      isRayIndicatorSkill(lastPayload.input.activeSkill, lastPayload.state.players[lastPayload.localSide].mechId)
+    ) {
       render(lastPayload);
     }
   });
@@ -1139,13 +1281,13 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       }
     }
 
-    const orbTurns = self.effects.orbTurns;
+    const role3Turns = self.mechId === "aya" ? self.effects.ayaStealthTurns : self.effects.orbTurns;
     for (const [skill, badge] of roleDurationBadges) {
       if (skill !== "role3") {
         badge.style.display = "none";
         continue;
       }
-      const src = getDisplayNumberSrc(assets, orbTurns);
+      const src = getDisplayNumberSrc(assets, role3Turns);
       if (!src || !self.skills.role3 || !isRoleSkillImplemented(self.mechId, "role3")) {
         badge.style.display = "none";
         continue;
@@ -1206,9 +1348,19 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     for (const entry of history) {
       const item = document.createElement("div");
       item.className = "announcement-item";
-      if (entry.includes("blue") || entry.includes("Blue") || entry.includes("\u84dd\u65b9")) {
+      if (
+        entry.startsWith("P1") ||
+        entry.includes("blue") ||
+        entry.includes("Blue") ||
+        entry.includes("\u84dd\u65b9")
+      ) {
         item.classList.add("announcement-blue");
-      } else if (entry.includes("red") || entry.includes("Red") || entry.includes("\u7ea2\u65b9")) {
+      } else if (
+        entry.startsWith("P2") ||
+        entry.includes("red") ||
+        entry.includes("Red") ||
+        entry.includes("\u7ea2\u65b9")
+      ) {
         item.classList.add("announcement-red");
       }
       item.textContent = entry;

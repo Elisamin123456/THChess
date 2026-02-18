@@ -720,26 +720,26 @@ var MECH_DEFINITIONS = {
     roleSkills: {
       role1: makeSkill(
         "role1",
-        "Persuasion Needle",
-        "Spend N spirit to fire N needles in a line. The first hit unit in each needle path takes 1 damage.",
+        "\u5F3E\u5E55\u300CPersuasion Needle\u300D",
+        "\u6D88\u8D39N\u70B9\u7075\u529B\uFF0C\u53D1\u5C04N\u679A\u5C01\u9B54\u9488\u5BF9\u8DEF\u5F84\u4E0A\u7684\u7B2C\u4E00\u4E2A\u5355\u4F4D\u9020\u62101\u70B9\u4F24\u5BB3\u3002",
         true
       ),
       role2: makeSkill(
         "role2",
-        "Homing Amulet",
-        "Spend 1 spirit to deal piercing 1 damage to all units on the path. Refund 1 spirit if enemy unit is hit.",
+        "\u970A\u6483\u300CHoming Amulet\u300D",
+        "\u6D88\u8D391\u70B9\u7075\u529B\uFF0C\u53D1\u5C041\u679A\u7B26\u672D\u5BF9\u8DEF\u5F84\u4E0A\u7684\u6240\u6709\u5355\u4F4D\u9020\u62101\u70B9\u4F24\u5BB3\u3002\u82E5\u5BF9\u654C\u65B9\u673A\u4F53\u9020\u6210\u4F24\u5BB3\uFF0C\u6062\u590D1\u70B9\u7075\u529B\u3002",
         true
       ),
       role3: makeSkill(
         "role3",
-        "Yin-Yang Orb",
-        "Spend N spirit to gain vision radius N for N turns.",
+        "\u8996\u754C\u300C\u9670\u967D\u5B9D\u7389\u300D",
+        "\u6D88\u8D39N\u7075\u529B\uFF0C\u83B7\u53D6\u534A\u5F84N\u7684\u89C6\u91CE\uFF0C\u6301\u7EEDN\u56DE\u5408\u3002",
         true
       ),
       role4: makeSkill(
         "role4",
-        "G Free",
-        "Spend N spirit to blink to an empty tile within range N. This is not a move action.",
+        "\u5965\u7FA9\u300CG Free\u300D",
+        "\u6D88\u8D39N\u7075\u529B\uFF0C\u95EA\u73B0\u5230\u534A\u5F84N\u5185\u4EFB\u610F\u4E00\u683C\u3002",
         true
       )
     }
@@ -760,7 +760,32 @@ var MECH_DEFINITIONS = {
     id: "aya",
     name: "Aya",
     avatarSrc: "./assets/char/aya.png",
-    roleSkills: buildEmptyRoleSkills()
+    roleSkills: {
+      role1: makeSkill(
+        "role1",
+        "\u5F3E\u5E55\uFF1A\u300C\u9CE5\u5C45\u3064\u3080\u3058\u98A8\u300D",
+        "\u88AB\u52A8\uFF1A\u5C04\u547D\u4E38\u6587\u6267\u884C\u79FB\u52A8\u540E\u7ACB\u523B\u8FDB\u884C\u4E00\u6B21\u989D\u5916\u666E\u901A\u653B\u51FB\uFF1B\u6267\u884C\u666E\u901A\u653B\u51FB\u540E\u7ACB\u523B\u8FDB\u884C\u4E00\u6B21\u989D\u5916\u79FB\u52A8\u3002\u88AB\u52A8\u4EA7\u751F\u7684\u666E\u901A\u653B\u51FB\u6216\u884C\u52A8\u4E0D\u4F1A\u518D\u6B21\u89E6\u53D1\u88AB\u52A8\u3002\u6D88\u8D392\u70B9\u7075\u529B\uFF0C\u53D1\u5C042\u4E2A\u65CB\u98CE\uFF0C\u6BCF\u4E2A\u5BF9\u8DEF\u5F84\u4E0A\u7684\u7B2C\u4E00\u4E2A\u5355\u4F4D\u9020\u62101\u70B9\u4F24\u5BB3\uFF0C\u5E76\u5BF9\u9020\u6210\u4F24\u5BB3\u7684\u76EE\u6807\u6807\u8BB0\u300C\u9D09\u306E\u95C7\u300D\u3002",
+        true
+      ),
+      role2: makeSkill(
+        "role2",
+        "\u970A\u6483\uFF1A\u300C\u98A8\u795E\u4E00\u6247\u300D",
+        "\u6D88\u8D391\u70B9\u7075\u529B\uFF1A\u7ACB\u523B\u8FDB\u884C\u4E00\u6B21\u53EF\u89E6\u53D1\u88AB\u52A8\u7684\u79FB\u52A8\uFF0C\u5E76\u4F7F\u4E0B\u4E00\u6B21\u666E\u901A\u653B\u51FB\u7684\u89C6\u91CE\u3001\u8DDD\u79BB\u548C\u653B\u51FB\u529B+1\uFF1B\u6216\u7ACB\u523B\u8FDB\u884C\u4E00\u6B21\u53EF\u89E6\u53D1\u88AB\u52A8\u7684\u666E\u901A\u653B\u51FB\uFF0C\u5E76\u4F7F\u4E0B\u4E00\u6B21\u79FB\u52A8\u8DDD\u79BB+2\u4E14\u65E0\u89C6\u5899\u4F53\u3002",
+        true
+      ),
+      role3: makeSkill(
+        "role3",
+        "\u8996\u754C:\u300C\u98A8\u795E\u6728\u306E\u8449\u96A0\u308C\u300D",
+        "\u6D88\u8D391\u70B9\u7075\u529B\uFF0C\u4E0B\u4E00\u6B21\u666E\u901A\u653B\u51FB\u6216\u79FB\u52A8\u540E\u8FDB\u51652\u56DE\u5408\u9690\u8EAB\uFF08\u53EF\u88AB\u4FA6\u5BDF\uFF09\u3002\u9690\u8EAB\u65F6\u5728\u5BF9\u65B9\u89C6\u91CE\u5185\u4E0D\u4F1A\u663E\u793A\u4F4D\u7F6E\uFF0C\u4E14\u666E\u901A\u516C\u544A\u4F1A\u88AB\u968F\u673A\u5185\u5BB9\u66FF\u6362\u3002",
+        true
+      ),
+      role4: makeSkill(
+        "role4",
+        "\u5965\u7FA9:\u300C\u5E7B\u60F3\u98A8\u9761\u300D",
+        "\u6D88\u8D39N\u70B9\u7075\u529B\uFF0C\u4ECE\u5F53\u524D\u4F4D\u7F6E\u4F4D\u79FB\u5230N\u683C\u8303\u56F4\u5185\uFF0C\u5BF9\u8DEF\u5F84\u4E0A\u5355\u4F4D\u9020\u6210\u7B49\u540C\u653B\u51FB\u529B\u7684\u4F24\u5BB3\u3002\u82E5\u547D\u4E2D\u654C\u65B9\u673A\u4F53\uFF0C\u8FD4\u8FD8N\u70B9\u7075\u529B\u3002\u8BE5\u6280\u80FD\u4E0D\u5C5E\u4E8E\u79FB\u52A8\u3002",
+        true
+      )
+    }
   }
 };
 var BP_OPTIONS = [
@@ -800,6 +825,7 @@ var SKILL_UNLOCK_COST = 100;
 var NEEDLE_INTERVAL_MS = 140;
 var MAX_ANNOUNCEMENTS = 80;
 var RAY_EPSILON = 1e-9;
+var AYA_STEALTH_TURNS = 2;
 var INITIAL_WALL_COORDS = [];
 for (let y = 3; y <= 8; y += 1) {
   INITIAL_WALL_COORDS.push({ x: 3, y });
@@ -827,6 +853,7 @@ function getBaseTerrain(coord) {
   return "ground";
 }
 function createUnit(side, pos, initialSpirit, mechId) {
+  const maxSpirit = mechId === "aya" ? 5 : 25;
   return {
     id: getPlayerIdBySide(side),
     side,
@@ -834,8 +861,8 @@ function createUnit(side, pos, initialSpirit, mechId) {
     pos: { ...pos },
     stats: {
       hp: 10,
-      spirit: initialSpirit,
-      maxSpirit: 25,
+      spirit: Math.max(0, Math.min(maxSpirit, initialSpirit)),
+      maxSpirit,
       atk: 1,
       vision: 1,
       moveRange: 1,
@@ -849,7 +876,12 @@ function createUnit(side, pos, initialSpirit, mechId) {
     },
     effects: {
       orbVisionRadius: 0,
-      orbTurns: 0
+      orbTurns: 0,
+      ayaStealthReady: false,
+      ayaStealthTurns: 0,
+      ayaNextAttackBuff: false,
+      ayaNextMoveBuff: false,
+      ayaSigil: false
     }
   };
 }
@@ -859,7 +891,8 @@ function createWalls() {
     walls[coordToKey(coord)] = {
       hp: 5,
       maxHp: 5,
-      alive: true
+      alive: true,
+      ayaSigil: false
     };
   }
   return walls;
@@ -886,10 +919,89 @@ function cloneWalls(walls) {
   }
   return next;
 }
+function isAya(state, side) {
+  return state.players[side].mechId === "aya";
+}
+function isAyaUnit(unit) {
+  return unit.mechId === "aya";
+}
+function canIssuePrimaryAction(state, actor) {
+  return canIssueAction(state, actor) && state.turn.pendingAction === null;
+}
+function clearTurnPending(turn) {
+  return {
+    ...turn,
+    pendingAnnouncement: null,
+    pendingAction: null,
+    pendingActionCanTriggerPassive: false
+  };
+}
+function markTurnActionEnded(turn) {
+  return {
+    ...clearTurnPending(turn),
+    acted: true
+  };
+}
+function markTurnPendingAction(turn, pendingAction, canTriggerPassive) {
+  return {
+    ...clearTurnPending(turn),
+    acted: false,
+    pendingAction,
+    pendingActionCanTriggerPassive: canTriggerPassive
+  };
+}
+function getAyaDisguiseAnnouncements(actor) {
+  return [
+    `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u79FB\u52A8`,
+    `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u5EFA\u9020`,
+    `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u4FA6\u5BDF`,
+    `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u666E\u901A\u653B\u51FB`,
+    "\u6587\u53D1\u5C04\u4E86\u65CB\u98CE",
+    "\u6587\u8FDB\u884C\u4E86\u5F3A\u5316",
+    "\u6587\u8FDB\u884C\u4E86\u4F4D\u79FB"
+  ];
+}
+function pickAyaRandomAnnouncement(state, actor, salt) {
+  const self = state.players[actor];
+  const input = `${state.seq}|${state.turn.round}|${actor}|${salt}|${self.pos.x},${self.pos.y}|${self.stats.hp}|${self.stats.spirit}`;
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const pool = getAyaDisguiseAnnouncements(actor);
+  const index = Math.abs(hash >>> 0) % pool.length;
+  return pool[index];
+}
+function shouldUseAyaRandomAnnouncement(state, actor, forceRandom) {
+  if (!isAya(state, actor)) {
+    return false;
+  }
+  if (forceRandom) {
+    return true;
+  }
+  return state.players[actor].effects.ayaStealthTurns > 0;
+}
+function resolvePrimaryAnnouncement(state, actor, text, salt, forceRandom = false) {
+  if (!shouldUseAyaRandomAnnouncement(state, actor, forceRandom)) {
+    return text;
+  }
+  return pickAyaRandomAnnouncement(state, actor, salt);
+}
+function activateAyaStealthIfReady(unit) {
+  if (!isAyaUnit(unit) || !unit.effects.ayaStealthReady) {
+    return;
+  }
+  unit.effects.ayaStealthReady = false;
+  unit.effects.ayaStealthTurns = AYA_STEALTH_TURNS;
+}
 function canUseRoleSkillByMech(state, side, skill) {
   return isRoleSkillImplemented(state.players[side].mechId, skill);
 }
 function canUseRoleSkillByState(state, side, skill) {
+  if (state.turn.side !== side || state.turn.acted || state.turn.pendingAction !== null) {
+    return false;
+  }
   return canUseRoleSkillByMech(state, side, skill);
 }
 function createInitialState(mechBySide) {
@@ -901,7 +1013,9 @@ function createInitialState(mechBySide) {
       side: "blue",
       round: 1,
       acted: false,
-      pendingAnnouncement: null
+      pendingAnnouncement: null,
+      pendingAction: null,
+      pendingActionCanTriggerPassive: false
     },
     players: {
       blue: createUnit("blue", BLUE_SPAWN, 0, blueMech),
@@ -991,7 +1105,7 @@ function canIssueAction(state, actor) {
   return canIssueCommandByTurn(state, actor) && !state.turn.acted;
 }
 function canEndTurn(state, actor) {
-  return canIssueCommandByTurn(state, actor);
+  return canIssueCommandByTurn(state, actor) && !state.turn.acted && state.turn.pendingAction === null;
 }
 function containsCoord(list, target) {
   return list.some((item) => coordsEqual(item, target));
@@ -1026,10 +1140,27 @@ function getWinnerFromPlayers(state) {
 }
 function getVisionRadius(state, side) {
   const unit = state.players[side];
+  const ayaAttackVisionBonus = isAyaUnit(unit) && unit.effects.ayaNextAttackBuff ? 1 : 0;
   if (unit.effects.orbTurns > 0) {
-    return Math.max(unit.stats.vision, unit.effects.orbVisionRadius);
+    return Math.max(unit.stats.vision + ayaAttackVisionBonus, unit.effects.orbVisionRadius);
   }
-  return unit.stats.vision;
+  return unit.stats.vision + ayaAttackVisionBonus;
+}
+function getAttackRange(unit) {
+  if (isAyaUnit(unit) && unit.effects.ayaNextAttackBuff) {
+    return 2;
+  }
+  return 1;
+}
+function getAttackDamage(unit) {
+  const bonus = isAyaUnit(unit) && unit.effects.ayaNextAttackBuff ? 1 : 0;
+  return floorDamage(unit.stats.atk + bonus);
+}
+function getMoveRange(unit) {
+  if (isAyaUnit(unit) && unit.effects.ayaNextMoveBuff) {
+    return unit.stats.moveRange + 2;
+  }
+  return unit.stats.moveRange;
 }
 function computeRayMaxT(startX, startY, dirX, dirY) {
   let maxT = Number.POSITIVE_INFINITY;
@@ -1197,6 +1328,60 @@ function buildProjectileEffect(kind, actor, origin, path, delayMs, rayEnd) {
     ...rayEnd ? { rayEnd } : {}
   };
 }
+function hasAyaSigilOnTarget(players, walls, actor, target) {
+  const enemySide = oppositeSide(actor);
+  if (coordsEqual(players[enemySide].pos, target)) {
+    return players[enemySide].effects.ayaSigil;
+  }
+  return Boolean(walls[coordToKey(target)]?.ayaSigil);
+}
+function clearAyaSigilOnTarget(players, walls, actor, target) {
+  const enemySide = oppositeSide(actor);
+  if (coordsEqual(players[enemySide].pos, target)) {
+    players[enemySide].effects.ayaSigil = false;
+    return;
+  }
+  const key = coordToKey(target);
+  if (walls[key]) {
+    walls[key].ayaSigil = false;
+  }
+}
+function tryQueueAyaPassiveAttack(state, actor, allowPassiveTrigger) {
+  if (!allowPassiveTrigger || !isAya(state, actor)) {
+    return markTurnActionEnded(state.turn);
+  }
+  const probeState = {
+    ...state,
+    turn: clearTurnPending({
+      ...state.turn,
+      acted: false
+    })
+  };
+  if (getLegalAttackTargets(probeState, actor).length <= 0) {
+    return markTurnActionEnded(state.turn);
+  }
+  return markTurnPendingAction(state.turn, "attack", false);
+}
+function tryQueueAyaMoveAfterAttack(state, actor, allowPassiveTrigger, hitAyaSigil) {
+  if (!isAya(state, actor)) {
+    return markTurnActionEnded(state.turn);
+  }
+  const queueMove = hitAyaSigil || allowPassiveTrigger;
+  if (!queueMove) {
+    return markTurnActionEnded(state.turn);
+  }
+  const probeState = {
+    ...state,
+    turn: clearTurnPending({
+      ...state.turn,
+      acted: false
+    })
+  };
+  if (getLegalMoveTargets(probeState, actor).length <= 0) {
+    return markTurnActionEnded(state.turn);
+  }
+  return markTurnPendingAction(state.turn, "move", hitAyaSigil);
+}
 function appendAnnouncements(base, additions) {
   if (additions.length === 0) {
     if (base.length <= MAX_ANNOUNCEMENTS) {
@@ -1211,8 +1396,7 @@ function appendAnnouncements(base, additions) {
   return merged.slice(merged.length - MAX_ANNOUNCEMENTS);
 }
 function formatTurnAnnouncement(round, side, text) {
-  void side;
-  return `\u56DE\u5408${round}: ${text}`;
+  return `${getPlayerIdBySide(side).toUpperCase()}\u56DE\u5408${round}: ${text}`;
 }
 function appendTurnAnnouncements(base, round, side, additions) {
   if (additions.length === 0) {
@@ -1230,19 +1414,21 @@ function getLegalMoveTargets(state, actor) {
   if (!canIssueAction(state, actor)) {
     return [];
   }
+  if (state.turn.pendingAction && state.turn.pendingAction !== "move") {
+    return [];
+  }
   const result = [];
   const self = state.players[actor];
   const enemy = state.players[oppositeSide(actor)];
-  for (let dy = -1; dy <= 1; dy += 1) {
-    for (let dx = -1; dx <= 1; dx += 1) {
-      if (dx === 0 && dy === 0) {
-        continue;
-      }
-      const target = { x: self.pos.x + dx, y: self.pos.y + dy };
+  const range = getMoveRange(self);
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const target = { x, y };
       if (!isCoordInBounds(target)) {
         continue;
       }
-      if (chebyshevDistance(self.pos, target) > self.stats.moveRange) {
+      const distance = chebyshevDistance(self.pos, target);
+      if (distance <= 0 || distance > range) {
         continue;
       }
       if (isWallAliveAt(state, target)) {
@@ -1257,7 +1443,7 @@ function getLegalMoveTargets(state, actor) {
   return result;
 }
 function getLegalBuildTargets(state, actor, spiritSpend) {
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return [];
   }
   if (!Number.isInteger(spiritSpend) || spiritSpend <= 0) {
@@ -1284,24 +1470,26 @@ function getLegalBuildTargets(state, actor, spiritSpend) {
   return result;
 }
 function canUseScout(state, actor) {
-  return canIssueAction(state, actor) && state.players[actor].stats.spirit >= 1;
+  return canIssuePrimaryAction(state, actor) && state.players[actor].stats.spirit >= 1;
 }
 function getLegalAttackTargets(state, actor) {
   if (!canIssueAction(state, actor)) {
     return [];
   }
+  if (state.turn.pendingAction && state.turn.pendingAction !== "attack") {
+    return [];
+  }
   const result = [];
   const self = state.players[actor];
-  for (let dy = -1; dy <= 1; dy += 1) {
-    for (let dx = -1; dx <= 1; dx += 1) {
-      if (dx === 0 && dy === 0) {
-        continue;
-      }
-      const target = { x: self.pos.x + dx, y: self.pos.y + dy };
+  const range = getAttackRange(self);
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const target = { x, y };
       if (!isCoordInBounds(target)) {
         continue;
       }
-      if (chebyshevDistance(self.pos, target) > 1) {
+      const distance = chebyshevDistance(self.pos, target);
+      if (distance <= 0 || distance > range) {
         continue;
       }
       if (!isAttackTargetAt(state, actor, target)) {
@@ -1313,7 +1501,7 @@ function getLegalAttackTargets(state, actor) {
   return result;
 }
 function getLegalBlinkTargets(state, actor, spiritSpend) {
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return [];
   }
   if (!Number.isInteger(spiritSpend) || spiritSpend <= 0) {
@@ -1363,6 +1551,10 @@ function applyMove(state, command) {
   if (!canIssueAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
+  if (state.turn.pendingAction && state.turn.pendingAction !== "move") {
+    return { ok: false, reason: "must resolve pending attack first" };
+  }
+  const allowPassiveTrigger = state.turn.pendingAction ? state.turn.pendingActionCanTriggerPassive : true;
   const target = keyToCoord(command.to);
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
@@ -1376,17 +1568,32 @@ function applyMove(state, command) {
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].pos = { ...target };
   nextPlayers[actor].stats.spirit = nextSpirit;
+  if (isAyaUnit(nextPlayers[actor])) {
+    nextPlayers[actor].effects.ayaNextMoveBuff = false;
+    activateAyaStealthIfReady(nextPlayers[actor]);
+  }
+  const actionStateForQueue = {
+    ...state,
+    players: nextPlayers,
+    turn: clearTurnPending({
+      ...state.turn,
+      acted: false
+    })
+  };
+  const nextTurn = tryQueueAyaPassiveAttack(actionStateForQueue, actor, allowPassiveTrigger);
+  const primaryAnnouncement = resolvePrimaryAnnouncement(
+    state,
+    actor,
+    `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u79FB\u52A8`,
+    "move"
+  );
   const nextState = {
     ...state,
     players: nextPlayers,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u79FB\u52A8`
+      primaryAnnouncement
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null
-    }
+    turn: nextTurn
   };
   return { ok: true, state: nextState };
 }
@@ -1395,7 +1602,7 @@ function applyBuild(state, command) {
     return { ok: false, reason: "invalid build command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
   const target = keyToCoord(command.to);
@@ -1419,20 +1626,17 @@ function applyBuild(state, command) {
   nextWalls[wallKey] = {
     hp: command.spirit,
     maxHp: command.spirit,
-    alive: true
+    alive: true,
+    ayaSigil: false
   };
   const nextState = {
     ...state,
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u5EFA\u9020`
+      resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u5EFA\u9020`, "build")
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null
-    }
+    turn: markTurnActionEnded(state.turn)
   };
   return { ok: true, state: nextState };
 }
@@ -1441,7 +1645,7 @@ function applyScout(state, command) {
     return { ok: false, reason: "invalid scout command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
@@ -1456,13 +1660,9 @@ function applyScout(state, command) {
     ...state,
     players: nextPlayers,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u4FA6\u5BDF\uFF0C${scoutResult}`
+      resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u4FA6\u5BDF\uFF0C${scoutResult}`, "scout")
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null
-    }
+    turn: markTurnActionEnded(state.turn)
   };
   return { ok: true, state: nextState };
 }
@@ -1474,26 +1674,49 @@ function applyAttack(state, command) {
   if (!canIssueAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
+  if (state.turn.pendingAction && state.turn.pendingAction !== "attack") {
+    return { ok: false, reason: "must resolve pending move first" };
+  }
+  const allowPassiveTrigger = state.turn.pendingAction ? state.turn.pendingActionCanTriggerPassive : true;
   const target = keyToCoord(command.to);
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
   }
   const self = state.players[actor];
-  if (chebyshevDistance(self.pos, target) > 1 || coordsEqual(self.pos, target)) {
+  const attackRange = getAttackRange(self);
+  if (chebyshevDistance(self.pos, target) > attackRange || coordsEqual(self.pos, target)) {
     return { ok: false, reason: "attack target out of range" };
   }
   if (!isAttackTargetAt(state, actor, target)) {
     return { ok: false, reason: "no valid target in tile" };
   }
-  const damage = floorDamage(self.stats.atk);
+  const damage = getAttackDamage(self);
   const enemySide = oppositeSide(actor);
   const nextPlayers = clonePlayers(state.players);
   const nextWalls = cloneWalls(state.walls);
   const damageAnnouncements = [];
+  const hitAyaSigil = isAya(state, actor) && hasAyaSigilOnTarget(state.players, state.walls, actor, target);
+  if (hitAyaSigil) {
+    clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, target);
+  }
   if (coordsEqual(nextPlayers[enemySide].pos, target)) {
     applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements);
   }
   applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
+  if (isAyaUnit(nextPlayers[actor])) {
+    nextPlayers[actor].effects.ayaNextAttackBuff = false;
+    activateAyaStealthIfReady(nextPlayers[actor]);
+  }
+  const actionStateForQueue = {
+    ...state,
+    players: nextPlayers,
+    walls: nextWalls,
+    turn: clearTurnPending({
+      ...state.turn,
+      acted: false
+    })
+  };
+  const nextTurn = tryQueueAyaMoveAfterAttack(actionStateForQueue, actor, allowPassiveTrigger, hitAyaSigil);
   const winner = getWinnerFromPlayers({
     ...state,
     players: nextPlayers,
@@ -1504,14 +1727,10 @@ function applyAttack(state, command) {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u666E\u901A\u653B\u51FB`,
+      resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u666E\u901A\u653B\u51FB`, "attack"),
       ...damageAnnouncements
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null
-    },
+    turn: nextTurn,
     winner
   };
   return { ok: true, state: nextState };
@@ -1523,6 +1742,9 @@ function applyUnlockSkill(state, command) {
   const actor = command.actor;
   if (!canIssueCommandByTurn(state, actor)) {
     return { ok: false, reason: "cannot unlock now" };
+  }
+  if (state.turn.pendingAction !== null) {
+    return { ok: false, reason: "cannot unlock during pending action" };
   }
   const self = state.players[actor];
   if (!canUseRoleSkillByMech(state, actor, command.skill)) {
@@ -1550,7 +1772,7 @@ function applyNeedle(state, command) {
     return { ok: false, reason: "invalid needle command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
@@ -1560,12 +1782,6 @@ function applyNeedle(state, command) {
   if (!self.skills.role1) {
     return { ok: false, reason: "skill role1 not unlocked" };
   }
-  if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
-    return { ok: false, reason: "invalid spirit spend" };
-  }
-  if (self.stats.spirit < command.spirit) {
-    return { ok: false, reason: "not enough spirit" };
-  }
   const target = keyToCoord(command.to);
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
@@ -1573,6 +1789,115 @@ function applyNeedle(state, command) {
   const ray = buildRayPath(self.pos, target);
   if (!ray || ray.cells.length === 0) {
     return { ok: false, reason: "invalid needle direction" };
+  }
+  if (isAya(state, actor)) {
+    if (!Number.isInteger(command.spirit) || command.spirit !== 2) {
+      return { ok: false, reason: "aya role1 spirit must be 2" };
+    }
+    if (self.stats.spirit < 2) {
+      return { ok: false, reason: "not enough spirit" };
+    }
+    const enemySide2 = oppositeSide(actor);
+    const nextPlayers2 = clonePlayers(state.players);
+    const nextWalls2 = cloneWalls(state.walls);
+    const damageAnnouncements2 = [];
+    const projectiles2 = [];
+    for (let index = 0; index < 2; index += 1) {
+      const traveled = [];
+      let traveledExitT = 0;
+      let endT = ray.maxT;
+      let cellIndex = 0;
+      while (cellIndex < ray.cells.length) {
+        const groupEnterT = ray.cells[cellIndex].enterT;
+        const group = [];
+        while (cellIndex < ray.cells.length && Math.abs(ray.cells[cellIndex].enterT - groupEnterT) <= RAY_EPSILON) {
+          const hit = ray.cells[cellIndex];
+          group.push(hit);
+          traveled.push(hit.coord);
+          traveledExitT = Math.max(traveledExitT, hit.exitT);
+          cellIndex += 1;
+        }
+        let hitCoord = null;
+        let hitType = null;
+        for (const hit of group) {
+          if (isWallAliveInMap(nextWalls2, hit.coord)) {
+            hitCoord = hit.coord;
+            hitType = "wall";
+            break;
+          }
+        }
+        if (!hitType) {
+          for (const hit of group) {
+            if (coordsEqual(nextPlayers2[enemySide2].pos, hit.coord)) {
+              hitCoord = hit.coord;
+              hitType = "enemy";
+              break;
+            }
+          }
+        }
+        if (!hitCoord || !hitType) {
+          continue;
+        }
+        if (hitType === "wall") {
+          const damaged = applyWallDamage(nextPlayers2, nextWalls2, actor, hitCoord, 1);
+          if (damaged) {
+            const key = coordToKey(hitCoord);
+            if (nextWalls2[key]?.alive) {
+              nextWalls2[key].ayaSigil = true;
+            }
+          }
+        } else {
+          const damaged = applyEnemyDamage(nextPlayers2, enemySide2, 1, damageAnnouncements2);
+          if (damaged && nextPlayers2[enemySide2].stats.hp > 0) {
+            nextPlayers2[enemySide2].effects.ayaSigil = true;
+          }
+        }
+        endT = Math.max(groupEnterT + RAY_EPSILON, traveledExitT);
+        break;
+      }
+      if (traveledExitT > RAY_EPSILON && endT === ray.maxT) {
+        endT = traveledExitT;
+      }
+      projectiles2.push(
+        buildProjectileEffect(
+          "wind",
+          actor,
+          nextPlayers2[actor].pos,
+          traveled,
+          index * NEEDLE_INTERVAL_MS,
+          getRayPoint(ray, endT)
+        )
+      );
+    }
+    nextPlayers2[actor].stats.spirit -= 2;
+    const winner2 = getWinnerFromPlayers({
+      ...state,
+      players: nextPlayers2,
+      walls: nextWalls2
+    });
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers2,
+        walls: nextWalls2,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          resolvePrimaryAnnouncement(state, actor, "\u6587\u53D1\u5C04\u4E86\u65CB\u98CE", "aya-role1"),
+          ...damageAnnouncements2
+        ]),
+        turn: markTurnActionEnded(state.turn),
+        winner: winner2
+      },
+      effects: {
+        projectiles: projectiles2
+      }
+    };
+  }
+  if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
+    return { ok: false, reason: "invalid spirit spend" };
+  }
+  if (self.stats.spirit < command.spirit) {
+    return { ok: false, reason: "not enough spirit" };
   }
   const enemySide = oppositeSide(actor);
   const nextPlayers = clonePlayers(state.players);
@@ -1640,11 +1965,7 @@ function applyNeedle(state, command) {
       "\u7075\u68A6\u53D1\u5C04\u4E86\u5C01\u9B54\u9488",
       ...damageAnnouncements
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null
-    },
+    turn: markTurnActionEnded(state.turn),
     winner
   };
   const effects = {
@@ -1661,7 +1982,7 @@ function applyAmulet(state, command) {
     return { ok: false, reason: "invalid amulet command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
@@ -1680,6 +2001,94 @@ function applyAmulet(state, command) {
   const target = keyToCoord(command.to);
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
+  }
+  if (isAya(state, actor)) {
+    const legalMove = containsCoord(getLegalMoveTargets(state, actor), target);
+    const legalAttack = containsCoord(getLegalAttackTargets(state, actor), target);
+    if (!legalMove && !legalAttack) {
+      return { ok: false, reason: "illegal aya role2 target" };
+    }
+    const nextPlayers2 = clonePlayers(state.players);
+    const nextWalls2 = cloneWalls(state.walls);
+    const damageAnnouncements2 = [];
+    nextPlayers2[actor].stats.spirit -= 1;
+    const primaryAnnouncement = resolvePrimaryAnnouncement(state, actor, "\u6587\u8FDB\u884C\u4E86\u5F3A\u5316", "aya-role2");
+    if (legalMove) {
+      const beforeMove = { ...nextPlayers2[actor].pos };
+      nextPlayers2[actor].effects.ayaNextAttackBuff = true;
+      nextPlayers2[actor].pos = { ...target };
+      if (isOrthogonalStep(beforeMove, target)) {
+        nextPlayers2[actor].stats.spirit = Math.min(
+          nextPlayers2[actor].stats.maxSpirit,
+          nextPlayers2[actor].stats.spirit + 1
+        );
+      }
+      nextPlayers2[actor].effects.ayaNextMoveBuff = false;
+      activateAyaStealthIfReady(nextPlayers2[actor]);
+      const queueState2 = {
+        ...state,
+        players: nextPlayers2,
+        walls: nextWalls2,
+        turn: clearTurnPending({
+          ...state.turn,
+          acted: false
+        })
+      };
+      const nextTurn2 = tryQueueAyaPassiveAttack(queueState2, actor, true);
+      return {
+        ok: true,
+        state: {
+          ...state,
+          players: nextPlayers2,
+          walls: nextWalls2,
+          announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [primaryAnnouncement]),
+          turn: nextTurn2
+        }
+      };
+    }
+    const enemySide2 = oppositeSide(actor);
+    const attackerBefore = nextPlayers2[actor];
+    nextPlayers2[actor].effects.ayaNextMoveBuff = true;
+    const damage = getAttackDamage(attackerBefore);
+    const hitAyaSigil = hasAyaSigilOnTarget(state.players, state.walls, actor, target);
+    if (hitAyaSigil) {
+      clearAyaSigilOnTarget(nextPlayers2, nextWalls2, actor, target);
+    }
+    if (coordsEqual(nextPlayers2[enemySide2].pos, target)) {
+      applyEnemyDamage(nextPlayers2, enemySide2, damage, damageAnnouncements2);
+    }
+    applyWallDamage(nextPlayers2, nextWalls2, actor, target, damage);
+    nextPlayers2[actor].effects.ayaNextAttackBuff = false;
+    activateAyaStealthIfReady(nextPlayers2[actor]);
+    const winner2 = getWinnerFromPlayers({
+      ...state,
+      players: nextPlayers2,
+      walls: nextWalls2
+    });
+    const queueState = {
+      ...state,
+      players: nextPlayers2,
+      walls: nextWalls2,
+      turn: clearTurnPending({
+        ...state.turn,
+        acted: false
+      })
+    };
+    const nextTurn = tryQueueAyaMoveAfterAttack(queueState, actor, true, hitAyaSigil);
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers2,
+        walls: nextWalls2,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          primaryAnnouncement,
+          ...damageAnnouncements2
+        ]),
+        turn: nextTurn,
+        winner: winner2
+      }
+    };
   }
   const ray = buildRayPath(self.pos, target);
   if (!ray || ray.cells.length === 0) {
@@ -1718,11 +2127,7 @@ function applyAmulet(state, command) {
       "\u7075\u68A6\u53D1\u5C04\u4E86\u7B26\u672D",
       ...damageAnnouncements
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null
-    },
+    turn: markTurnActionEnded(state.turn),
     winner
   };
   return {
@@ -1747,7 +2152,7 @@ function applyOrb(state, command) {
     return { ok: false, reason: "invalid orb command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
@@ -1764,6 +2169,24 @@ function applyOrb(state, command) {
     return { ok: false, reason: "not enough spirit" };
   }
   const nextPlayers = clonePlayers(state.players);
+  if (isAya(state, actor)) {
+    if (command.spirit !== 1) {
+      return { ok: false, reason: "aya role3 spirit must be 1" };
+    }
+    nextPlayers[actor].stats.spirit -= 1;
+    nextPlayers[actor].effects.ayaStealthReady = true;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          resolvePrimaryAnnouncement(state, actor, "\u6587\u51C6\u5907\u4E86\u9690\u8EAB", "aya-role3", true)
+        ]),
+        turn: markTurnActionEnded(state.turn)
+      }
+    };
+  }
   nextPlayers[actor].stats.spirit -= command.spirit;
   nextPlayers[actor].effects.orbVisionRadius = command.spirit;
   nextPlayers[actor].effects.orbTurns = command.spirit;
@@ -1775,11 +2198,7 @@ function applyOrb(state, command) {
       announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
         `\u7075\u68A6\u83B7\u5F97\u4E86\u534A\u5F84\u4E3A${command.spirit}\u7684\u89C6\u91CE`
       ]),
-      turn: {
-        ...state.turn,
-        acted: true,
-        pendingAnnouncement: null
-      }
+      turn: markTurnActionEnded(state.turn)
     }
   };
 }
@@ -1788,7 +2207,7 @@ function applyBlink(state, command) {
     return { ok: false, reason: "invalid blink command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
@@ -1812,6 +2231,53 @@ function applyBlink(state, command) {
   if (!legal) {
     return { ok: false, reason: "illegal blink target" };
   }
+  if (isAya(state, actor)) {
+    const nextPlayers2 = clonePlayers(state.players);
+    const nextWalls = cloneWalls(state.walls);
+    const damageAnnouncements = [];
+    const damage = floorDamage(self.stats.atk);
+    const enemySide = oppositeSide(actor);
+    let hitEnemy = false;
+    const ray = buildRayPath(self.pos, target);
+    if (ray) {
+      for (const hit of ray.cells) {
+        if (coordsEqual(hit.coord, target)) {
+          break;
+        }
+        if (applyWallDamage(nextPlayers2, nextWalls, actor, hit.coord, damage)) {
+          nextWalls[coordToKey(hit.coord)].ayaSigil = false;
+        }
+        if (coordsEqual(nextPlayers2[enemySide].pos, hit.coord)) {
+          hitEnemy = applyEnemyDamage(nextPlayers2, enemySide, damage, damageAnnouncements) || hitEnemy;
+        }
+      }
+    }
+    const spiritAfter = nextPlayers2[actor].stats.spirit - command.spirit + (hitEnemy ? command.spirit : 0);
+    nextPlayers2[actor].stats.spirit = Math.max(
+      0,
+      Math.min(nextPlayers2[actor].stats.maxSpirit, spiritAfter)
+    );
+    nextPlayers2[actor].pos = { ...target };
+    const winner = getWinnerFromPlayers({
+      ...state,
+      players: nextPlayers2,
+      walls: nextWalls
+    });
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers2,
+        walls: nextWalls,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          resolvePrimaryAnnouncement(state, actor, "\u6587\u8FDB\u884C\u4E86\u4F4D\u79FB", "aya-role4"),
+          ...damageAnnouncements
+        ]),
+        turn: markTurnActionEnded(state.turn),
+        winner
+      }
+    };
+  }
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= command.spirit;
   nextPlayers[actor].pos = { ...target };
@@ -1823,29 +2289,28 @@ function applyBlink(state, command) {
       announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
         `\u7075\u68A6\u95EA\u73B0\u5230\u4E86\u534A\u5F84\u4E3A${command.spirit}\u5185\u7684\u4E00\u683C`
       ]),
-      turn: {
-        ...state.turn,
-        acted: true,
-        pendingAnnouncement: null
-      }
+      turn: markTurnActionEnded(state.turn)
     }
   };
 }
-function decrementOrbWhenTurnStarts(players, enteringSide) {
+function decrementTimedEffectsWhenTurnStarts(players, enteringSide) {
   const effect = players[enteringSide].effects;
   if (effect.orbTurns <= 0) {
-    return;
+  } else {
+    effect.orbTurns = Math.max(0, effect.orbTurns - 1);
+    if (effect.orbTurns === 0) {
+      effect.orbVisionRadius = 0;
+    }
   }
-  effect.orbTurns = Math.max(0, effect.orbTurns - 1);
-  if (effect.orbTurns === 0) {
-    effect.orbVisionRadius = 0;
+  if (effect.ayaStealthTurns > 0) {
+    effect.ayaStealthTurns = Math.max(0, effect.ayaStealthTurns - 1);
   }
 }
 function advanceTurnState(state, actor) {
   const nextSide = oppositeSide(actor);
   const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
   const nextPlayers = clonePlayers(state.players);
-  decrementOrbWhenTurnStarts(nextPlayers, nextSide);
+  decrementTimedEffectsWhenTurnStarts(nextPlayers, nextSide);
   return {
     ...state,
     players: nextPlayers,
@@ -1853,7 +2318,9 @@ function advanceTurnState(state, actor) {
       side: nextSide,
       round: nextRound,
       acted: false,
-      pendingAnnouncement: null
+      pendingAnnouncement: null,
+      pendingAction: null,
+      pendingActionCanTriggerPassive: false
     }
   };
 }
@@ -1877,7 +2344,7 @@ function applyEndTurn(state, command) {
       {
         ...state,
         announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-          `${getSideLabel(actor)}\u9009\u62E9\u4E86\u7A7A\u8FC7`
+          resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}\u9009\u62E9\u4E86\u7A7A\u8FC7`, "endturn")
         ])
       },
       actor
@@ -1927,6 +2394,9 @@ function applyCommand(state, command) {
     return applied;
   }
   if (command.type === "endTurn" || command.type === "unlockSkill" || applied.state.winner) {
+    return applied;
+  }
+  if (!applied.state.turn.acted) {
     return applied;
   }
   return {
@@ -1992,8 +2462,10 @@ function buildPerspective(state, side) {
   }
   const self = state.players[side];
   const enemySide = oppositeSide(side);
-  const enemyPos = state.players[enemySide].pos;
-  const enemyVisible = isVisibleFrom(state, side, enemyPos);
+  const enemyUnit = state.players[enemySide];
+  const enemyPos = enemyUnit.pos;
+  const enemyStealthed = enemyUnit.mechId === "aya" && enemyUnit.effects.ayaStealthTurns > 0;
+  const enemyVisible = !enemyStealthed && isVisibleFrom(state, side, enemyPos);
   return {
     side,
     cells,
@@ -2338,12 +2810,34 @@ function canAct(ctx) {
 function localUnit(ctx) {
   return ctx.game.players[ctx.localSide];
 }
+function isAya2(ctx) {
+  return localUnit(ctx).mechId === "aya";
+}
 function getSpiritSpendBounds(skill, ctx) {
+  if (skill === "build" || skill === "role4") {
+    const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
+    return { min: max > 0 ? 1 : 0, max };
+  }
+  if (skill === "role1") {
+    if (isAya2(ctx)) {
+      const canUse = localUnit(ctx).stats.spirit >= 2;
+      return { min: canUse ? 2 : 0, max: canUse ? 2 : 0 };
+    }
+    const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
+    return { min: max > 0 ? 1 : 0, max };
+  }
+  if (skill === "role3") {
+    if (isAya2(ctx)) {
+      const canUse = localUnit(ctx).stats.spirit >= 1;
+      return { min: canUse ? 1 : 0, max: canUse ? 1 : 0 };
+    }
+    const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
+    return { min: max > 0 ? 1 : 0, max };
+  }
   if (skill !== "build" && skill !== "role1" && skill !== "role3" && skill !== "role4") {
     return { min: 0, max: 0 };
   }
-  const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
-  return { min: max > 0 ? 1 : 0, max };
+  return { min: 0, max: 0 };
 }
 function hasAnyBuildTarget(ctx) {
   const bounds = getSpiritSpendBounds("build", ctx);
@@ -2369,8 +2863,17 @@ function hasAnyBlinkTarget(ctx) {
   }
   return false;
 }
-function isVariableSpiritSkill(skill) {
-  return skill === "build" || skill === "role1" || skill === "role3" || skill === "role4";
+function isVariableSpiritSkill(skill, ctx) {
+  if (!skill) {
+    return false;
+  }
+  if (skill === "build" || skill === "role4") {
+    return true;
+  }
+  if (skill === "role1" || skill === "role3") {
+    return !isAya2(ctx);
+  }
+  return false;
 }
 function createInitialInputState() {
   return {
@@ -2381,6 +2884,7 @@ function createInitialInputState() {
 }
 function getSkillAvailability(ctx) {
   const self = localUnit(ctx);
+  const aya = self.mechId === "aya";
   const noAction = {
     move: false,
     build: false,
@@ -2394,13 +2898,14 @@ function getSkillAvailability(ctx) {
   if (!canAct(ctx)) {
     return noAction;
   }
+  const ayaRole2CanUse = getLegalMoveTargets(ctx.game, ctx.localSide).length > 0 || getLegalAttackTargets(ctx.game, ctx.localSide).length > 0;
   return {
     move: getLegalMoveTargets(ctx.game, ctx.localSide).length > 0,
     build: hasAnyBuildTarget(ctx),
     scout: canUseScout(ctx.game, ctx.localSide),
     attack: getLegalAttackTargets(ctx.game, ctx.localSide).length > 0,
-    role1: canUseRoleSkillByState(ctx.game, ctx.localSide, "role1") && self.skills.role1 && self.stats.spirit >= 1,
-    role2: canUseRoleSkillByState(ctx.game, ctx.localSide, "role2") && self.skills.role2 && self.stats.spirit >= 1,
+    role1: canUseRoleSkillByState(ctx.game, ctx.localSide, "role1") && self.skills.role1 && self.stats.spirit >= (aya ? 2 : 1),
+    role2: canUseRoleSkillByState(ctx.game, ctx.localSide, "role2") && self.skills.role2 && self.stats.spirit >= 1 && (!aya || ayaRole2CanUse),
     role3: canUseRoleSkillByState(ctx.game, ctx.localSide, "role3") && self.skills.role3 && self.stats.spirit >= 1,
     role4: canUseRoleSkillByState(ctx.game, ctx.localSide, "role4") && self.skills.role4 && hasAnyBlinkTarget(ctx)
   };
@@ -2439,7 +2944,7 @@ function onSkillClick(state, skill, ctx) {
   };
 }
 function onAdjustSpiritSpend(state, delta, ctx) {
-  if (!isVariableSpiritSkill(state.activeSkill)) {
+  if (!isVariableSpiritSkill(state.activeSkill, ctx)) {
     return { next: { ...state } };
   }
   const bounds = getSpiritSpendBounds(state.activeSkill, ctx);
@@ -2558,15 +3063,30 @@ function onBoardClick(state, coord, ctx) {
     if (coordsEqual(selfPos2, coord)) {
       return { next: { ...state } };
     }
+    const spirit = localUnit(ctx).mechId === "aya" ? 2 : state.spiritSpend;
     return {
       next: {
         ...state,
         activeSkill: null
       },
-      command: createNeedleCommand(ctx.localSide, coord, state.spiritSpend)
+      command: createNeedleCommand(ctx.localSide, coord, spirit)
     };
   }
   if (state.activeSkill === "role2") {
+    if (localUnit(ctx).mechId === "aya") {
+      const legalMove = getLegalMoveTargets(ctx.game, ctx.localSide);
+      const legalAttack = getLegalAttackTargets(ctx.game, ctx.localSide);
+      if (!containsCoord2(legalMove, coord) && !containsCoord2(legalAttack, coord)) {
+        return { next: { ...state } };
+      }
+      return {
+        next: {
+          ...state,
+          activeSkill: null
+        },
+        command: createAmuletCommand(ctx.localSide, coord)
+      };
+    }
     const selfPos2 = localUnit(ctx).pos;
     if (coordsEqual(selfPos2, coord)) {
       return { next: { ...state } };
@@ -2580,12 +3100,13 @@ function onBoardClick(state, coord, ctx) {
     };
   }
   if (state.activeSkill === "role3") {
+    const spirit = localUnit(ctx).mechId === "aya" ? 1 : state.spiritSpend;
     return {
       next: {
         ...state,
         activeSkill: null
       },
-      command: createOrbCommand(ctx.localSide, state.spiritSpend)
+      command: createOrbCommand(ctx.localSide, spirit)
     };
   }
   if (state.activeSkill === "role4") {
@@ -2661,13 +3182,19 @@ function getHighlights(state, ctx) {
       attackHighlights: []
     };
   }
+  if (state.activeSkill === "role2" && localUnit(ctx).mechId === "aya") {
+    return {
+      moveHighlights: getLegalMoveTargets(ctx.game, ctx.localSide),
+      attackHighlights: getLegalAttackTargets(ctx.game, ctx.localSide)
+    };
+  }
   return {
     moveHighlights: [],
     attackHighlights: []
   };
 }
 function getSpiritSelectorView(state, ctx) {
-  if (!isVariableSpiritSkill(state.activeSkill)) {
+  if (!isVariableSpiritSkill(state.activeSkill, ctx)) {
     return {
       visible: false,
       value: 0,
@@ -7374,16 +7901,28 @@ var SKILLS = [
   { id: "role4", label: "", basic: false }
 ];
 var BASIC_SKILL_TOOLTIPS = {
-  move: "Move. Make one 8-direction step (range 1). Orthogonal move grants +1 spirit; diagonal grants none. Cannot move onto walls or units.",
-  build: "Build. Spend N spirit to create a wall with HP N / Max HP N within range N. Walls cannot be built on occupied cells.",
-  scout: "Scout. Spend 1 spirit to reveal enemy coordinate immediately.",
-  attack: "Attack. Spend 0 spirit to perform a range-1 attack."
+  move: {
+    title: "\u79FB\u52A8",
+    body: "\u54118\u5411\u79FB\u52A8\uFF0C\u6B63\u65B9\u5411\u79FB\u52A8\u540E\u589E\u52A01\u7075\u529B\uFF0C\u659C\u5411\u79FB\u52A8\u4E0D\u589E\u52A0\u7075\u529B\u3002"
+  },
+  build: {
+    title: "\u5EFA\u9020",
+    body: "\u6D88\u8D39N\u7075\u529B\uFF0C\u5728\u8DDD\u79BB\u4E3AN\u7684\u8303\u56F4\u5185\u5EFA\u9020\u751F\u547D\u503C\u4E0A\u9650\u4E3AN\u7684\u5899\u4F53\u3002\u5899\u4F53\u65E0\u6CD5\u5EFA\u9020\u5728\u4EFB\u610F\u5355\u4F4D\u4E4B\u4E0A\u3002"
+  },
+  scout: {
+    title: "\u4FA6\u5BDF",
+    body: "\u6D88\u8D391\u7075\u529B\uFF0C\u7ACB\u523B\u83B7\u5F97\u5BF9\u65B9\u5750\u6807\u3002"
+  },
+  attack: {
+    title: "\u666E\u901A\u653B\u51FB",
+    body: "\u8FDB\u884C\u4E00\u6B21\u8DDD\u79BB\u4E3A1\u7684\u653B\u51FB\u9020\u6210\u7B49\u540C\u4E8E\u51FB\u529B\u7684\u4F24\u5BB3\u3002"
+  }
 };
 var ROLE_SLOT_LABELS = {
-  role1: "Skill 1",
-  role2: "Skill 2",
-  role3: "Skill 3",
-  role4: "Skill 4"
+  role1: "\u6280\u80FD1",
+  role2: "\u6280\u80FD2",
+  role3: "\u6280\u80FD3",
+  role4: "\u6280\u80FD4"
 };
 var VARIABLE_SPIRIT_SKILLS = /* @__PURE__ */ new Set(["build", "role1", "role3", "role4"]);
 function loadImage(src) {
@@ -7394,16 +7933,46 @@ function loadImage(src) {
     image.onerror = () => reject(new Error(`load image failed: ${src}`));
   });
 }
-async function loadRoleIconSet(prefix) {
+async function loadRoleIconSet(baseDir, prefix) {
   const [normal, selected, selecting] = await Promise.all([
-    loadImage(`./assets/skill/reimu/${prefix}.png`),
-    loadImage(`./assets/skill/reimu/${prefix}_selected.png`),
-    loadImage(`./assets/skill/reimu/${prefix}_selecting.png`)
+    loadImage(`${baseDir}/${prefix}.png`),
+    loadImage(`${baseDir}/${prefix}_selected.png`),
+    loadImage(`${baseDir}/${prefix}_selecting.png`)
   ]);
   return { normal, selected, selecting };
 }
+async function loadSingleRoleIcon(src) {
+  const icon = await loadImage(src);
+  return {
+    normal: icon,
+    selected: icon,
+    selecting: icon
+  };
+}
 async function loadAssets() {
-  const [ground, grass, spawn, wall, reimu, marisa, koishi, aya, needle, amulet, orbEffect, role1, role2, role3, role4] = await Promise.all([
+  const [
+    ground,
+    grass,
+    spawn,
+    wall,
+    reimu,
+    marisa,
+    koishi,
+    aya,
+    needle,
+    amulet,
+    wind,
+    sigil,
+    orbEffect,
+    reimuRole1,
+    reimuRole2,
+    reimuRole3,
+    reimuRole4,
+    ayaRole1,
+    ayaRole2,
+    ayaRole3,
+    ayaRole4
+  ] = await Promise.all([
     loadImage("./assets/tiles/ground.png"),
     loadImage("./assets/tiles/grass.png"),
     loadImage("./assets/tiles/spawn.png"),
@@ -7414,11 +7983,17 @@ async function loadAssets() {
     loadImage("./assets/char/aya.png"),
     loadImage("./assets/bullet/reimu/reimuneedle.png"),
     loadImage("./assets/bullet/reimu/reimuamulet.png"),
+    loadImage("./assets/bullet/aya/wind.png"),
+    loadImage("./assets/bullet/aya/sigil.png"),
     loadImage("./assets/bullet/reimu/yinyangorb.png"),
-    loadRoleIconSet("reimu_1"),
-    loadRoleIconSet("reimu_2"),
-    loadRoleIconSet("reimu_3"),
-    loadRoleIconSet("reimu_4")
+    loadRoleIconSet("./assets/skill/reimu", "reimu_1"),
+    loadRoleIconSet("./assets/skill/reimu", "reimu_2"),
+    loadRoleIconSet("./assets/skill/reimu", "reimu_3"),
+    loadRoleIconSet("./assets/skill/reimu", "reimu_4"),
+    loadSingleRoleIcon("./assets/skill/aya/aya1.png"),
+    loadSingleRoleIcon("./assets/skill/aya/aya2.png"),
+    loadSingleRoleIcon("./assets/skill/aya/aya3.png"),
+    loadSingleRoleIcon("./assets/skill/aya/aya4.png")
   ]);
   const numbers = /* @__PURE__ */ new Map();
   const numberSrc = /* @__PURE__ */ new Map();
@@ -7447,17 +8022,24 @@ async function loadAssets() {
     },
     needle,
     amulet,
+    wind,
+    sigil,
     orbEffect,
     roleIconsByMech: {
       reimu: {
-        role1,
-        role2,
-        role3,
-        role4
+        role1: reimuRole1,
+        role2: reimuRole2,
+        role3: reimuRole3,
+        role4: reimuRole4
       },
       marisa: {},
       koishi: {},
-      aya: {}
+      aya: {
+        role1: ayaRole1,
+        role2: ayaRole2,
+        role3: ayaRole3,
+        role4: ayaRole4
+      }
     },
     numbers,
     numberSrc
@@ -7525,8 +8107,14 @@ function getDisplayNumberSrc(assets, value) {
 function isVariableSkill(skill) {
   return Boolean(skill && VARIABLE_SPIRIT_SKILLS.has(skill));
 }
-function isRayIndicatorSkill(skill) {
-  return skill === "role1" || skill === "role2" || skill === "role4";
+function isRayIndicatorSkill(skill, mechId) {
+  if (skill === "role1" || skill === "role4") {
+    return true;
+  }
+  if (skill === "role2") {
+    return mechId !== "aya";
+  }
+  return false;
 }
 async function createGameView(root) {
   const assets = await loadAssets();
@@ -7621,6 +8209,12 @@ async function createGameView(root) {
   for (const roleSkillId of ["role1", "role2", "role3", "role4"]) {
     const item = document.createElement("div");
     item.className = "bp-skill-item hollow-frame";
+    item.addEventListener("mouseenter", () => {
+      showTooltip(roleSkillId, item);
+    });
+    item.addEventListener("mouseleave", () => {
+      hideTooltip();
+    });
     bpSkillGrid.appendChild(item);
     bpSkillItems.set(roleSkillId, item);
   }
@@ -7629,6 +8223,11 @@ async function createGameView(root) {
   const tooltip = document.createElement("div");
   tooltip.className = "skill-tooltip";
   tooltip.style.display = "none";
+  const tooltipTitle = document.createElement("div");
+  tooltipTitle.className = "skill-tooltip-title";
+  const tooltipBody = document.createElement("div");
+  tooltipBody.className = "skill-tooltip-body";
+  tooltip.append(tooltipTitle, tooltipBody);
   skillPanel.appendChild(tooltip);
   const unlockPopup = document.createElement("div");
   unlockPopup.className = "unlock-popup";
@@ -7668,43 +8267,58 @@ async function createGameView(root) {
     }
     return lastPayload.state.players[lastPayload.localSide].mechId;
   }
-  function getTooltipText(skill) {
+  function getTooltipContent(skill) {
     if (skill === "move" || skill === "build" || skill === "scout" || skill === "attack") {
       return BASIC_SKILL_TOOLTIPS[skill];
     }
     const mechId = resolvePreviewMechForSkillPanel();
     if (!mechId) {
-      return "Please select a mech first.";
+      return {
+        title: "\u6280\u80FD\u8BF4\u660E",
+        body: "\u8BF7\u5148\u5728BP\u754C\u9762\u9009\u62E9\u673A\u4F53\u3002"
+      };
     }
     const roleSkill = getRoleSkillDefinition(mechId, skill);
     if (!roleSkill.implemented) {
-      return roleSkill.name ? `${roleSkill.name}
-Description pending.` : "This role skill is not implemented for this mech.";
+      return {
+        title: roleSkill.name || ROLE_SLOT_LABELS[skill],
+        body: "\u8BE5\u673A\u4F53\u6682\u65E0\u6B64\u6280\u80FD\u8BF4\u660E\u3002"
+      };
     }
-    return roleSkill.description ? `${roleSkill.name}
-${roleSkill.description}` : roleSkill.name;
+    return {
+      title: roleSkill.name || ROLE_SLOT_LABELS[skill],
+      body: roleSkill.description
+    };
   }
   function showTooltip(skill, anchor) {
-    const text = getTooltipText(skill);
-    if (!text) {
+    const content = getTooltipContent(skill);
+    if (!content.title && !content.body) {
       return;
     }
-    tooltip.textContent = text;
+    tooltipTitle.textContent = content.title;
+    tooltipBody.textContent = content.body;
     tooltip.style.display = "block";
     const panelRect = skillPanel.getBoundingClientRect();
     const anchorRect = anchor.getBoundingClientRect();
-    const tooltipWidth = 210;
-    const left = anchorRect.left - panelRect.left + (anchorRect.width - tooltipWidth) * 0.5;
-    const top = anchorRect.top - panelRect.top - 52;
-    tooltip.style.left = `${Math.max(0, left)}px`;
-    tooltip.style.top = `${Math.max(0, top)}px`;
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    const leftRaw = anchorRect.left - panelRect.left + (anchorRect.width - tooltipWidth) * 0.5;
+    const maxLeft = Math.max(0, panelRect.width - tooltipWidth);
+    const left = Math.min(maxLeft, Math.max(0, leftRaw));
+    let top = anchorRect.top - panelRect.top - tooltipHeight - 6;
+    if (top < 0) {
+      top = anchorRect.bottom - panelRect.top + 6;
+    }
+    const maxTop = Math.max(0, panelRect.height - tooltipHeight);
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${Math.min(maxTop, Math.max(0, top))}px`;
   }
   function showUnlockPopup(skill, anchor) {
     if (!lastPayload) {
       return;
     }
     const unit = lastPayload.state.players[lastPayload.localSide];
-    const canUnlock = !lastPayload.state.winner && lastPayload.connected && lastPayload.state.turn.side === lastPayload.localSide && isRoleSkillImplemented(unit.mechId, skill) && !unit.skills[skill] && unit.stats.gold >= 100;
+    const canUnlock = !lastPayload.state.winner && lastPayload.connected && lastPayload.state.turn.side === lastPayload.localSide && !lastPayload.state.turn.acted && lastPayload.state.turn.pendingAction === null && isRoleSkillImplemented(unit.mechId, skill) && !unit.skills[skill] && unit.stats.gold >= 100;
     unlockPendingSkill = skill;
     unlockText.textContent = canUnlock ? "\u4F7F\u7528100\u91D1\u5E01\u89E3\u9501\u8BE5\u6280\u80FD\uFF1F" : "\u91D1\u5E01\u4E0D\u8DB3\u6216\u5F53\u524D\u4E0D\u53EF\u89E3\u9501";
     unlockYes.disabled = !canUnlock;
@@ -7984,6 +8598,28 @@ ${roleSkill.description}` : roleSkill.name;
         );
       }
     }
+    for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+      for (let x = 0; x < BOARD_WIDTH; x += 1) {
+        const cell = getCell(payload.perspective.cells, x, y);
+        if (!cell.visible || !cell.hasWall) {
+          continue;
+        }
+        const wallState = payload.state.walls[coordToKey(cell.coord)];
+        if (!wallState?.alive || !wallState.ayaSigil) {
+          continue;
+        }
+        const px = left + x * tile;
+        const py = top + y * tile;
+        const size = Math.floor(tile * 0.56);
+        ctx.drawImage(
+          assets.sigil,
+          px + Math.floor((tile - size) * 0.5),
+          py + Math.floor((tile - size) * 0.5),
+          size,
+          size
+        );
+      }
+    }
     const now = performance.now();
     const drawPiece = (side) => {
       const logicalPos = payload.perspective.pieces[side];
@@ -7998,6 +8634,16 @@ ${roleSkill.description}` : roleSkill.name;
       const unit = payload.state.players[side];
       const charImage = assets.chars[unit.mechId] ?? assets.chars.reimu;
       ctx.drawImage(charImage, px + pad, py + pad, tile - pad * 2, tile - pad * 2);
+      if (unit.effects.ayaSigil) {
+        const markSize = Math.floor(tile * 0.42);
+        ctx.drawImage(
+          assets.sigil,
+          px + Math.floor((tile - markSize) * 0.5),
+          py + Math.floor((tile - markSize) * 0.5),
+          markSize,
+          markSize
+        );
+      }
       ctx.strokeStyle = side === "blue" ? "#58a8ff" : "#ff6565";
       ctx.lineWidth = Math.max(2, Math.floor(tile * 0.08));
       ctx.strokeRect(px + 2, py + 2, tile - 4, tile - 4);
@@ -8020,7 +8666,8 @@ ${roleSkill.description}` : roleSkill.name;
     drawPiece("blue");
     drawPiece("red");
     const activeSkill = payload.input.activeSkill;
-    if (isRayIndicatorSkill(activeSkill) && hoverCoord) {
+    const selfMech = payload.state.players[payload.localSide].mechId;
+    if (isRayIndicatorSkill(activeSkill, selfMech) && hoverCoord) {
       const self = payload.state.players[payload.localSide].pos;
       const hoverLeft = left + hoverCoord.x * tile;
       const hoverTop = top + hoverCoord.y * tile;
@@ -8075,10 +8722,12 @@ ${roleSkill.description}` : roleSkill.name;
           continue;
         }
       }
-      const image = animation.kind === "needle" ? assets.needle : assets.amulet;
+      const image = animation.kind === "needle" ? assets.needle : animation.kind === "wind" ? assets.wind : assets.amulet;
       const px = left + renderState.pos.x * tile;
       const py = top + renderState.pos.y * tile;
-      const size = Math.floor(tile * (animation.kind === "needle" ? 0.52 : 0.58));
+      const size = Math.floor(
+        tile * (animation.kind === "needle" ? 0.52 : animation.kind === "wind" ? 0.62 : 0.58)
+      );
       ctx.save();
       ctx.translate(px, py);
       ctx.rotate(renderState.angle);
@@ -8144,7 +8793,7 @@ ${roleSkill.description}` : roleSkill.name;
       return;
     }
     hoverCoord = nextHover;
-    if (lastPayload && isRayIndicatorSkill(lastPayload.input.activeSkill)) {
+    if (lastPayload && isRayIndicatorSkill(lastPayload.input.activeSkill, lastPayload.state.players[lastPayload.localSide].mechId)) {
       render(lastPayload);
     }
   });
@@ -8162,7 +8811,7 @@ ${roleSkill.description}` : roleSkill.name;
       return;
     }
     hoverCoord = null;
-    if (lastPayload && isRayIndicatorSkill(lastPayload.input.activeSkill)) {
+    if (lastPayload && isRayIndicatorSkill(lastPayload.input.activeSkill, lastPayload.state.players[lastPayload.localSide].mechId)) {
       render(lastPayload);
     }
   });
@@ -8221,13 +8870,13 @@ ${roleSkill.description}` : roleSkill.name;
         button.textContent = skill.label;
       }
     }
-    const orbTurns = self.effects.orbTurns;
+    const role3Turns = self.mechId === "aya" ? self.effects.ayaStealthTurns : self.effects.orbTurns;
     for (const [skill, badge] of roleDurationBadges) {
       if (skill !== "role3") {
         badge.style.display = "none";
         continue;
       }
-      const src = getDisplayNumberSrc(assets, orbTurns);
+      const src = getDisplayNumberSrc(assets, role3Turns);
       if (!src || !self.skills.role3 || !isRoleSkillImplemented(self.mechId, "role3")) {
         badge.style.display = "none";
         continue;
@@ -8274,9 +8923,9 @@ ${roleSkill.description}` : roleSkill.name;
     for (const entry of history) {
       const item = document.createElement("div");
       item.className = "announcement-item";
-      if (entry.includes("blue") || entry.includes("Blue") || entry.includes("\u84DD\u65B9")) {
+      if (entry.startsWith("P1") || entry.includes("blue") || entry.includes("Blue") || entry.includes("\u84DD\u65B9")) {
         item.classList.add("announcement-blue");
-      } else if (entry.includes("red") || entry.includes("Red") || entry.includes("\u7EA2\u65B9")) {
+      } else if (entry.startsWith("P2") || entry.includes("red") || entry.includes("Red") || entry.includes("\u7EA2\u65B9")) {
         item.classList.add("announcement-red");
       }
       item.textContent = entry;
@@ -8666,7 +9315,8 @@ async function bootstrap() {
   replayDownloadLine.appendChild(document.createTextNode(" "));
   replayDownloadLine.appendChild(replayDownloadLink);
   debugRoot.appendChild(replayDownloadLine);
-  let state = createInitialState();
+  const createDefaultBattleState = () => testMode ? createInitialState({ blue: "aya" }) : createInitialState();
+  let state = createDefaultBattleState();
   if (testMode) {
     state.players.blue.stats.gold = 400;
     state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
@@ -8729,7 +9379,7 @@ async function bootstrap() {
       debugPanel.log("BP is incomplete; cannot start battle");
       return;
     }
-    state = bluePick && redPick ? createInitialState({ blue: bluePick, red: redPick }) : createInitialState();
+    state = bluePick && redPick ? createInitialState({ blue: bluePick, red: redPick }) : createDefaultBattleState();
     if (testMode) {
       state.players.blue.stats.gold = 400;
       state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;

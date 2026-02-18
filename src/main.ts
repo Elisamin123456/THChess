@@ -116,7 +116,10 @@ async function bootstrap(): Promise<void> {
   replayDownloadLine.appendChild(replayDownloadLink);
   debugRoot.appendChild(replayDownloadLine);
 
-  let state = createInitialState();
+  const createDefaultBattleState = (): GameState =>
+    testMode ? createInitialState({ blue: "aya" }) : createInitialState();
+
+  let state = createDefaultBattleState();
   if (testMode) {
     state.players.blue.stats.gold = 400;
     state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
@@ -184,7 +187,7 @@ async function bootstrap(): Promise<void> {
       return;
     }
 
-    state = bluePick && redPick ? createInitialState({ blue: bluePick, red: redPick }) : createInitialState();
+    state = bluePick && redPick ? createInitialState({ blue: bluePick, red: redPick }) : createDefaultBattleState();
     if (testMode) {
       state.players.blue.stats.gold = 400;
       state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;

@@ -63,12 +63,38 @@ function localUnit(ctx: InputContext) {
   return ctx.game.players[ctx.localSide];
 }
 
+function isAya(ctx: InputContext): boolean {
+  return localUnit(ctx).mechId === "aya";
+}
+
 function getSpiritSpendBounds(skill: SkillId | null, ctx: InputContext): { min: number; max: number } {
+  if (skill === "build" || skill === "role4") {
+    const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
+    return { min: max > 0 ? 1 : 0, max };
+  }
+
+  if (skill === "role1") {
+    if (isAya(ctx)) {
+      const canUse = localUnit(ctx).stats.spirit >= 2;
+      return { min: canUse ? 2 : 0, max: canUse ? 2 : 0 };
+    }
+    const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
+    return { min: max > 0 ? 1 : 0, max };
+  }
+
+  if (skill === "role3") {
+    if (isAya(ctx)) {
+      const canUse = localUnit(ctx).stats.spirit >= 1;
+      return { min: canUse ? 1 : 0, max: canUse ? 1 : 0 };
+    }
+    const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
+    return { min: max > 0 ? 1 : 0, max };
+  }
+
   if (skill !== "build" && skill !== "role1" && skill !== "role3" && skill !== "role4") {
     return { min: 0, max: 0 };
   }
-  const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
-  return { min: max > 0 ? 1 : 0, max };
+  return { min: 0, max: 0 };
 }
 
 function hasAnyBuildTarget(ctx: InputContext): boolean {
@@ -97,8 +123,17 @@ function hasAnyBlinkTarget(ctx: InputContext): boolean {
   return false;
 }
 
-function isVariableSpiritSkill(skill: SkillId | null): boolean {
-  return skill === "build" || skill === "role1" || skill === "role3" || skill === "role4";
+function isVariableSpiritSkill(skill: SkillId | null, ctx: InputContext): boolean {
+  if (!skill) {
+    return false;
+  }
+  if (skill === "build" || skill === "role4") {
+    return true;
+  }
+  if (skill === "role1" || skill === "role3") {
+    return !isAya(ctx);
+  }
+  return false;
 }
 
 export function createInitialInputState(): InputState {
@@ -111,6 +146,7 @@ export function createInitialInputState(): InputState {
 
 export function getSkillAvailability(ctx: InputContext): SkillAvailability {
   const self = localUnit(ctx);
+  const aya = self.mechId === "aya";
   const noAction: SkillAvailability = {
     move: false,
     build: false,
@@ -126,13 +162,24 @@ export function getSkillAvailability(ctx: InputContext): SkillAvailability {
     return noAction;
   }
 
+  const ayaRole2CanUse =
+    getLegalMoveTargets(ctx.game, ctx.localSide).length > 0 ||
+    getLegalAttackTargets(ctx.game, ctx.localSide).length > 0;
+
   return {
     move: getLegalMoveTargets(ctx.game, ctx.localSide).length > 0,
     build: hasAnyBuildTarget(ctx),
     scout: canUseScout(ctx.game, ctx.localSide),
     attack: getLegalAttackTargets(ctx.game, ctx.localSide).length > 0,
-    role1: canUseRoleSkillByState(ctx.game, ctx.localSide, "role1") && self.skills.role1 && self.stats.spirit >= 1,
-    role2: canUseRoleSkillByState(ctx.game, ctx.localSide, "role2") && self.skills.role2 && self.stats.spirit >= 1,
+    role1:
+      canUseRoleSkillByState(ctx.game, ctx.localSide, "role1") &&
+      self.skills.role1 &&
+      self.stats.spirit >= (aya ? 2 : 1),
+    role2:
+      canUseRoleSkillByState(ctx.game, ctx.localSide, "role2") &&
+      self.skills.role2 &&
+      self.stats.spirit >= 1 &&
+      (!aya || ayaRole2CanUse),
     role3: canUseRoleSkillByState(ctx.game, ctx.localSide, "role3") && self.skills.role3 && self.stats.spirit >= 1,
     role4: canUseRoleSkillByState(ctx.game, ctx.localSide, "role4") && self.skills.role4 && hasAnyBlinkTarget(ctx),
   };
@@ -178,7 +225,7 @@ export function onSkillClick(state: InputState, skill: SkillId, ctx: InputContex
 }
 
 export function onAdjustSpiritSpend(state: InputState, delta: number, ctx: InputContext): InputResult {
-  if (!isVariableSpiritSkill(state.activeSkill)) {
+  if (!isVariableSpiritSkill(state.activeSkill, ctx)) {
     return { next: { ...state } };
   }
   const bounds = getSpiritSpendBounds(state.activeSkill, ctx);
@@ -304,16 +351,31 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
     if (coordsEqual(selfPos, coord)) {
       return { next: { ...state } };
     }
+    const spirit = localUnit(ctx).mechId === "aya" ? 2 : state.spiritSpend;
     return {
       next: {
         ...state,
         activeSkill: null,
       },
-      command: createNeedleCommand(ctx.localSide, coord, state.spiritSpend),
+      command: createNeedleCommand(ctx.localSide, coord, spirit),
     };
   }
 
   if (state.activeSkill === "role2") {
+    if (localUnit(ctx).mechId === "aya") {
+      const legalMove = getLegalMoveTargets(ctx.game, ctx.localSide);
+      const legalAttack = getLegalAttackTargets(ctx.game, ctx.localSide);
+      if (!containsCoord(legalMove, coord) && !containsCoord(legalAttack, coord)) {
+        return { next: { ...state } };
+      }
+      return {
+        next: {
+          ...state,
+          activeSkill: null,
+        },
+        command: createAmuletCommand(ctx.localSide, coord),
+      };
+    }
     const selfPos = localUnit(ctx).pos;
     if (coordsEqual(selfPos, coord)) {
       return { next: { ...state } };
@@ -328,12 +390,13 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
   }
 
   if (state.activeSkill === "role3") {
+    const spirit = localUnit(ctx).mechId === "aya" ? 1 : state.spiritSpend;
     return {
       next: {
         ...state,
         activeSkill: null,
       },
-      command: createOrbCommand(ctx.localSide, state.spiritSpend),
+      command: createOrbCommand(ctx.localSide, spirit),
     };
   }
 
@@ -420,6 +483,12 @@ export function getHighlights(state: InputState, ctx: InputContext): HighlightSe
       attackHighlights: [],
     };
   }
+  if (state.activeSkill === "role2" && localUnit(ctx).mechId === "aya") {
+    return {
+      moveHighlights: getLegalMoveTargets(ctx.game, ctx.localSide),
+      attackHighlights: getLegalAttackTargets(ctx.game, ctx.localSide),
+    };
+  }
   return {
     moveHighlights: [],
     attackHighlights: [],
@@ -427,7 +496,7 @@ export function getHighlights(state: InputState, ctx: InputContext): HighlightSe
 }
 
 export function getSpiritSelectorView(state: InputState, ctx: InputContext): SpiritSelectorView {
-  if (!isVariableSpiritSkill(state.activeSkill)) {
+  if (!isVariableSpiritSkill(state.activeSkill, ctx)) {
     return {
       visible: false,
       value: 0,

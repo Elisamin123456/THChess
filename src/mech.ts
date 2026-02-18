@@ -18,6 +18,8 @@ export const DEFAULT_MECH_ID: MechId = "reimu";
 export const MECH_IDS: MechId[] = ["reimu", "marisa", "koishi", "aya"];
 export const NO_BAN_OPTION_ID: BpBanOptionId = "none";
 
+// 所有技能介绍文本不可更改。
+
 function makeSkill(id: RoleSkillId, name: string, description: string, implemented: boolean): RoleSkillDefinition {
   return {
     id,
@@ -46,26 +48,26 @@ export const MECH_DEFINITIONS: Record<MechId, MechDefinition> = {
     roleSkills: {
       role1: makeSkill(
         "role1",
-        "Persuasion Needle",
-        "Spend N spirit to fire N needles in a line. The first hit unit in each needle path takes 1 damage.",
+        "弾幕「Persuasion Needle」",
+        "消费N点灵力，发射N枚封魔针对路径上的第一个单位造成1点伤害。",
         true,
       ),
       role2: makeSkill(
         "role2",
-        "Homing Amulet",
-        "Spend 1 spirit to deal piercing 1 damage to all units on the path. Refund 1 spirit if enemy unit is hit.",
+        "霊撃「Homing Amulet」",
+        "消费1点灵力，发射1枚符札对路径上的所有单位造成1点伤害。若对敌方机体造成伤害，恢复1点灵力。",
         true,
       ),
       role3: makeSkill(
         "role3",
-        "Yin-Yang Orb",
-        "Spend N spirit to gain vision radius N for N turns.",
+        "視界「陰陽宝玉」",
+        "消费N灵力，获取半径N的视野，持续N回合。",
         true,
       ),
       role4: makeSkill(
         "role4",
-        "G Free",
-        "Spend N spirit to blink to an empty tile within range N. This is not a move action.",
+        "奥義「G Free」",
+        "消费N灵力，闪现到半径N内任意一格。",
         true,
       ),
     },
@@ -86,7 +88,32 @@ export const MECH_DEFINITIONS: Record<MechId, MechDefinition> = {
     id: "aya",
     name: "Aya",
     avatarSrc: "./assets/char/aya.png",
-    roleSkills: buildEmptyRoleSkills(),
+    roleSkills: {
+      role1: makeSkill(
+        "role1",
+        "弾幕：「鳥居つむじ風」",
+        "被动：射命丸文执行移动后立刻进行一次额外普通攻击；执行普通攻击后立刻进行一次额外移动。被动产生的普通攻击或行动不会再次触发被动。消费2点灵力，发射2个旋风，每个对路径上的第一个单位造成1点伤害，并对造成伤害的目标标记「鴉の闇」。",
+        true,
+      ),
+      role2: makeSkill(
+        "role2",
+        "霊撃：「風神一扇」",
+        "消费1点灵力：立刻进行一次可触发被动的移动，并使下一次普通攻击的视野、距离和攻击力+1；或立刻进行一次可触发被动的普通攻击，并使下一次移动距离+2且无视墙体。",
+        true,
+      ),
+      role3: makeSkill(
+        "role3",
+        "視界:「風神木の葉隠れ」",
+        "消费1点灵力，下一次普通攻击或移动后进入2回合隐身（可被侦察）。隐身时在对方视野内不会显示位置，且普通公告会被随机内容替换。",
+        true,
+      ),
+      role4: makeSkill(
+        "role4",
+        "奥義:「幻想風靡」",
+        "消费N点灵力，从当前位置位移到N格范围内，对路径上单位造成等同攻击力的伤害。若命中敌方机体，返还N点灵力。该技能不属于移动。",
+        true,
+      ),
+    },
   },
 };
 

@@ -9,6 +9,7 @@
   Coord,
   GameState,
   MechId,
+  PendingActionKind,
   PerspectiveCell,
   PerspectiveState,
   ProjectileEffect,
@@ -35,6 +36,7 @@ const SKILL_UNLOCK_COST = 100;
 const NEEDLE_INTERVAL_MS = 140;
 const MAX_ANNOUNCEMENTS = 80;
 const RAY_EPSILON = 1e-9;
+const AYA_STEALTH_TURNS = 2;
 
 const INITIAL_WALL_COORDS: Coord[] = [];
 for (let y = 3; y <= 8; y += 1) {
@@ -74,6 +76,7 @@ export function getBaseTerrain(coord: Coord): TerrainType {
 }
 
 function createUnit(side: Side, pos: Coord, initialSpirit: number, mechId: MechId): UnitState {
+  const maxSpirit = mechId === "aya" ? 5 : 25;
   return {
     id: getPlayerIdBySide(side),
     side,
@@ -81,8 +84,8 @@ function createUnit(side: Side, pos: Coord, initialSpirit: number, mechId: MechI
     pos: { ...pos },
     stats: {
       hp: 10,
-      spirit: initialSpirit,
-      maxSpirit: 25,
+      spirit: Math.max(0, Math.min(maxSpirit, initialSpirit)),
+      maxSpirit,
       atk: 1,
       vision: 1,
       moveRange: 1,
@@ -97,6 +100,11 @@ function createUnit(side: Side, pos: Coord, initialSpirit: number, mechId: MechI
     effects: {
       orbVisionRadius: 0,
       orbTurns: 0,
+      ayaStealthReady: false,
+      ayaStealthTurns: 0,
+      ayaNextAttackBuff: false,
+      ayaNextMoveBuff: false,
+      ayaSigil: false,
     },
   };
 }
@@ -108,6 +116,7 @@ function createWalls(): Record<string, WallState> {
       hp: 5,
       maxHp: 5,
       alive: true,
+      ayaSigil: false,
     };
   }
   return walls;
@@ -138,11 +147,111 @@ function cloneWalls(walls: Record<string, WallState>): Record<string, WallState>
   return next;
 }
 
+function isAya(state: GameState, side: Side): boolean {
+  return state.players[side].mechId === "aya";
+}
+
+function isAyaUnit(unit: UnitState): boolean {
+  return unit.mechId === "aya";
+}
+
+function canIssuePrimaryAction(state: GameState, actor: Side): boolean {
+  return canIssueAction(state, actor) && state.turn.pendingAction === null;
+}
+
+function clearTurnPending(turn: GameState["turn"]): GameState["turn"] {
+  return {
+    ...turn,
+    pendingAnnouncement: null,
+    pendingAction: null,
+    pendingActionCanTriggerPassive: false,
+  };
+}
+
+function markTurnActionEnded(turn: GameState["turn"]): GameState["turn"] {
+  return {
+    ...clearTurnPending(turn),
+    acted: true,
+  };
+}
+
+function markTurnPendingAction(
+  turn: GameState["turn"],
+  pendingAction: PendingActionKind,
+  canTriggerPassive: boolean,
+): GameState["turn"] {
+  return {
+    ...clearTurnPending(turn),
+    acted: false,
+    pendingAction,
+    pendingActionCanTriggerPassive: canTriggerPassive,
+  };
+}
+
+function getAyaDisguiseAnnouncements(actor: Side): string[] {
+  return [
+    `${getSideLabel(actor)}进行了移动`,
+    `${getSideLabel(actor)}进行了建造`,
+    `${getSideLabel(actor)}进行了侦察`,
+    `${getSideLabel(actor)}进行了普通攻击`,
+    "文发射了旋风",
+    "文进行了强化",
+    "文进行了位移",
+  ];
+}
+
+function pickAyaRandomAnnouncement(state: GameState, actor: Side, salt: string): string {
+  const self = state.players[actor];
+  const input = `${state.seq}|${state.turn.round}|${actor}|${salt}|${self.pos.x},${self.pos.y}|${self.stats.hp}|${self.stats.spirit}`;
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  const pool = getAyaDisguiseAnnouncements(actor);
+  const index = Math.abs(hash >>> 0) % pool.length;
+  return pool[index];
+}
+
+function shouldUseAyaRandomAnnouncement(state: GameState, actor: Side, forceRandom: boolean): boolean {
+  if (!isAya(state, actor)) {
+    return false;
+  }
+  if (forceRandom) {
+    return true;
+  }
+  return state.players[actor].effects.ayaStealthTurns > 0;
+}
+
+function resolvePrimaryAnnouncement(
+  state: GameState,
+  actor: Side,
+  text: string,
+  salt: string,
+  forceRandom = false,
+): string {
+  if (!shouldUseAyaRandomAnnouncement(state, actor, forceRandom)) {
+    return text;
+  }
+  return pickAyaRandomAnnouncement(state, actor, salt);
+}
+
+function activateAyaStealthIfReady(unit: UnitState): void {
+  if (!isAyaUnit(unit) || !unit.effects.ayaStealthReady) {
+    return;
+  }
+  unit.effects.ayaStealthReady = false;
+  unit.effects.ayaStealthTurns = AYA_STEALTH_TURNS;
+}
+
 function canUseRoleSkillByMech(state: GameState, side: Side, skill: RoleSkillId): boolean {
   return isRoleSkillImplemented(state.players[side].mechId, skill);
 }
 
 export function canUseRoleSkillByState(state: GameState, side: Side, skill: RoleSkillId): boolean {
+  if (state.turn.side !== side || state.turn.acted || state.turn.pendingAction !== null) {
+    return false;
+  }
   return canUseRoleSkillByMech(state, side, skill);
 }
 
@@ -156,6 +265,8 @@ export function createInitialState(mechBySide?: Partial<Record<Side, MechId>>): 
       round: 1,
       acted: false,
       pendingAnnouncement: null,
+      pendingAction: null,
+      pendingActionCanTriggerPassive: false,
     },
     players: {
       blue: createUnit("blue", BLUE_SPAWN, 0, blueMech),
@@ -258,7 +369,7 @@ function canIssueAction(state: GameState, actor: Side): boolean {
 }
 
 export function canEndTurn(state: GameState, actor: Side): boolean {
-  return canIssueCommandByTurn(state, actor);
+  return canIssueCommandByTurn(state, actor) && !state.turn.acted && state.turn.pendingAction === null;
 }
 
 function containsCoord(list: Coord[], target: Coord): boolean {
@@ -305,10 +416,30 @@ function getWinnerFromPlayers(state: GameState): Side | null {
 
 function getVisionRadius(state: GameState, side: Side): number {
   const unit = state.players[side];
+  const ayaAttackVisionBonus = isAyaUnit(unit) && unit.effects.ayaNextAttackBuff ? 1 : 0;
   if (unit.effects.orbTurns > 0) {
-    return Math.max(unit.stats.vision, unit.effects.orbVisionRadius);
+    return Math.max(unit.stats.vision + ayaAttackVisionBonus, unit.effects.orbVisionRadius);
   }
-  return unit.stats.vision;
+  return unit.stats.vision + ayaAttackVisionBonus;
+}
+
+function getAttackRange(unit: UnitState): number {
+  if (isAyaUnit(unit) && unit.effects.ayaNextAttackBuff) {
+    return 2;
+  }
+  return 1;
+}
+
+function getAttackDamage(unit: UnitState): number {
+  const bonus = isAyaUnit(unit) && unit.effects.ayaNextAttackBuff ? 1 : 0;
+  return floorDamage(unit.stats.atk + bonus);
+}
+
+function getMoveRange(unit: UnitState): number {
+  if (isAyaUnit(unit) && unit.effects.ayaNextMoveBuff) {
+    return unit.stats.moveRange + 2;
+  }
+  return unit.stats.moveRange;
 }
 
 interface RayPathCell {
@@ -516,7 +647,7 @@ function applyWallDamage(
 }
 
 function buildProjectileEffect(
-  kind: "needle" | "amulet",
+  kind: "needle" | "amulet" | "wind",
   actor: Side,
   origin: Coord,
   path: Coord[],
@@ -531,6 +662,79 @@ function buildProjectileEffect(
     delayMs,
     ...(rayEnd ? { rayEnd } : {}),
   };
+}
+
+function hasAyaSigilOnTarget(
+  players: Record<Side, UnitState>,
+  walls: Record<string, WallState>,
+  actor: Side,
+  target: Coord,
+): boolean {
+  const enemySide = oppositeSide(actor);
+  if (coordsEqual(players[enemySide].pos, target)) {
+    return players[enemySide].effects.ayaSigil;
+  }
+  return Boolean(walls[coordToKey(target)]?.ayaSigil);
+}
+
+function clearAyaSigilOnTarget(
+  players: Record<Side, UnitState>,
+  walls: Record<string, WallState>,
+  actor: Side,
+  target: Coord,
+): void {
+  const enemySide = oppositeSide(actor);
+  if (coordsEqual(players[enemySide].pos, target)) {
+    players[enemySide].effects.ayaSigil = false;
+    return;
+  }
+  const key = coordToKey(target);
+  if (walls[key]) {
+    walls[key].ayaSigil = false;
+  }
+}
+
+function tryQueueAyaPassiveAttack(state: GameState, actor: Side, allowPassiveTrigger: boolean): GameState["turn"] {
+  if (!allowPassiveTrigger || !isAya(state, actor)) {
+    return markTurnActionEnded(state.turn);
+  }
+  const probeState: GameState = {
+    ...state,
+    turn: clearTurnPending({
+      ...state.turn,
+      acted: false,
+    }),
+  };
+  if (getLegalAttackTargets(probeState, actor).length <= 0) {
+    return markTurnActionEnded(state.turn);
+  }
+  return markTurnPendingAction(state.turn, "attack", false);
+}
+
+function tryQueueAyaMoveAfterAttack(
+  state: GameState,
+  actor: Side,
+  allowPassiveTrigger: boolean,
+  hitAyaSigil: boolean,
+): GameState["turn"] {
+  if (!isAya(state, actor)) {
+    return markTurnActionEnded(state.turn);
+  }
+  const queueMove = hitAyaSigil || allowPassiveTrigger;
+  if (!queueMove) {
+    return markTurnActionEnded(state.turn);
+  }
+  const probeState: GameState = {
+    ...state,
+    turn: clearTurnPending({
+      ...state.turn,
+      acted: false,
+    }),
+  };
+  if (getLegalMoveTargets(probeState, actor).length <= 0) {
+    return markTurnActionEnded(state.turn);
+  }
+  return markTurnPendingAction(state.turn, "move", hitAyaSigil);
 }
 
 function appendAnnouncements(base: string[], additions: string[]): string[] {
@@ -549,8 +753,7 @@ function appendAnnouncements(base: string[], additions: string[]): string[] {
 
 // 公告属于双方可见信息，写死并且不允许任何更改。{}代表变量。
 function formatTurnAnnouncement(round: number, side: Side, text: string): string {
-  void side;
-  return `回合${round}: ${text}`;
+  return `${getPlayerIdBySide(side).toUpperCase()}回合${round}: ${text}`;
 }
 
 function appendTurnAnnouncements(
@@ -576,21 +779,23 @@ export function getLegalMoveTargets(state: GameState, actor: Side): Coord[] {
   if (!canIssueAction(state, actor)) {
     return [];
   }
+  if (state.turn.pendingAction && state.turn.pendingAction !== "move") {
+    return [];
+  }
 
   const result: Coord[] = [];
   const self = state.players[actor];
   const enemy = state.players[oppositeSide(actor)];
+  const range = getMoveRange(self);
 
-  for (let dy = -1; dy <= 1; dy += 1) {
-    for (let dx = -1; dx <= 1; dx += 1) {
-      if (dx === 0 && dy === 0) {
-        continue;
-      }
-      const target: Coord = { x: self.pos.x + dx, y: self.pos.y + dy };
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const target: Coord = { x, y };
       if (!isCoordInBounds(target)) {
         continue;
       }
-      if (chebyshevDistance(self.pos, target) > self.stats.moveRange) {
+      const distance = chebyshevDistance(self.pos, target);
+      if (distance <= 0 || distance > range) {
         continue;
       }
       if (isWallAliveAt(state, target)) {
@@ -606,7 +811,7 @@ export function getLegalMoveTargets(state: GameState, actor: Side): Coord[] {
 }
 
 export function getLegalBuildTargets(state: GameState, actor: Side, spiritSpend: number): Coord[] {
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return [];
   }
   if (!Number.isInteger(spiritSpend) || spiritSpend <= 0) {
@@ -636,26 +841,28 @@ export function getLegalBuildTargets(state: GameState, actor: Side, spiritSpend:
 }
 
 export function canUseScout(state: GameState, actor: Side): boolean {
-  return canIssueAction(state, actor) && state.players[actor].stats.spirit >= 1;
+  return canIssuePrimaryAction(state, actor) && state.players[actor].stats.spirit >= 1;
 }
 
 export function getLegalAttackTargets(state: GameState, actor: Side): Coord[] {
   if (!canIssueAction(state, actor)) {
     return [];
   }
+  if (state.turn.pendingAction && state.turn.pendingAction !== "attack") {
+    return [];
+  }
 
   const result: Coord[] = [];
   const self = state.players[actor];
-  for (let dy = -1; dy <= 1; dy += 1) {
-    for (let dx = -1; dx <= 1; dx += 1) {
-      if (dx === 0 && dy === 0) {
-        continue;
-      }
-      const target: Coord = { x: self.pos.x + dx, y: self.pos.y + dy };
+  const range = getAttackRange(self);
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const target: Coord = { x, y };
       if (!isCoordInBounds(target)) {
         continue;
       }
-      if (chebyshevDistance(self.pos, target) > 1) {
+      const distance = chebyshevDistance(self.pos, target);
+      if (distance <= 0 || distance > range) {
         continue;
       }
       if (!isAttackTargetAt(state, actor, target)) {
@@ -668,7 +875,7 @@ export function getLegalAttackTargets(state: GameState, actor: Side): Coord[] {
 }
 
 export function getLegalBlinkTargets(state: GameState, actor: Side, spiritSpend: number): Coord[] {
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return [];
   }
   if (!Number.isInteger(spiritSpend) || spiritSpend <= 0) {
@@ -721,6 +928,12 @@ function applyMove(state: GameState, command: Command): ApplyOutcome {
   if (!canIssueAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
+  if (state.turn.pendingAction && state.turn.pendingAction !== "move") {
+    return { ok: false, reason: "must resolve pending attack first" };
+  }
+  const allowPassiveTrigger = state.turn.pendingAction
+    ? state.turn.pendingActionCanTriggerPassive
+    : true;
 
   const target = keyToCoord(command.to);
   if (!target) {
@@ -739,18 +952,34 @@ function applyMove(state: GameState, command: Command): ApplyOutcome {
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].pos = { ...target };
   nextPlayers[actor].stats.spirit = nextSpirit;
+  if (isAyaUnit(nextPlayers[actor])) {
+    nextPlayers[actor].effects.ayaNextMoveBuff = false;
+    activateAyaStealthIfReady(nextPlayers[actor]);
+  }
+
+  const actionStateForQueue: GameState = {
+    ...state,
+    players: nextPlayers,
+    turn: clearTurnPending({
+      ...state.turn,
+      acted: false,
+    }),
+  };
+  const nextTurn = tryQueueAyaPassiveAttack(actionStateForQueue, actor, allowPassiveTrigger);
+  const primaryAnnouncement = resolvePrimaryAnnouncement(
+    state,
+    actor,
+    `${getSideLabel(actor)}进行了移动`,
+    "move",
+  );
 
   const nextState: GameState = {
     ...state,
     players: nextPlayers,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}进行了移动`,
+      primaryAnnouncement,
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null,
-    },
+    turn: nextTurn,
   };
   return { ok: true, state: nextState };
 }
@@ -760,7 +989,7 @@ function applyBuild(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid build command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
 
@@ -788,6 +1017,7 @@ function applyBuild(state: GameState, command: Command): ApplyOutcome {
     hp: command.spirit,
     maxHp: command.spirit,
     alive: true,
+    ayaSigil: false,
   };
 
   const nextState: GameState = {
@@ -795,13 +1025,9 @@ function applyBuild(state: GameState, command: Command): ApplyOutcome {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}进行了建造`,
+      resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}进行了建造`, "build"),
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null,
-    },
+    turn: markTurnActionEnded(state.turn),
   };
   return { ok: true, state: nextState };
 }
@@ -811,7 +1037,7 @@ function applyScout(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid scout command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
   const self = state.players[actor];
@@ -831,13 +1057,9 @@ function applyScout(state: GameState, command: Command): ApplyOutcome {
     ...state,
     players: nextPlayers,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}进行了侦察，${scoutResult}`,
+      resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}进行了侦察，${scoutResult}`, "scout"),
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null,
-    },
+    turn: markTurnActionEnded(state.turn),
   };
   return { ok: true, state: nextState };
 }
@@ -850,29 +1072,55 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
   if (!canIssueAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
+  if (state.turn.pendingAction && state.turn.pendingAction !== "attack") {
+    return { ok: false, reason: "must resolve pending move first" };
+  }
+  const allowPassiveTrigger = state.turn.pendingAction
+    ? state.turn.pendingActionCanTriggerPassive
+    : true;
 
   const target = keyToCoord(command.to);
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
   }
   const self = state.players[actor];
-  if (chebyshevDistance(self.pos, target) > 1 || coordsEqual(self.pos, target)) {
+  const attackRange = getAttackRange(self);
+  if (chebyshevDistance(self.pos, target) > attackRange || coordsEqual(self.pos, target)) {
     return { ok: false, reason: "attack target out of range" };
   }
   if (!isAttackTargetAt(state, actor, target)) {
     return { ok: false, reason: "no valid target in tile" };
   }
 
-  const damage = floorDamage(self.stats.atk);
+  const damage = getAttackDamage(self);
   const enemySide = oppositeSide(actor);
   const nextPlayers = clonePlayers(state.players);
   const nextWalls = cloneWalls(state.walls);
   const damageAnnouncements: string[] = [];
+  const hitAyaSigil = isAya(state, actor) && hasAyaSigilOnTarget(state.players, state.walls, actor, target);
+  if (hitAyaSigil) {
+    clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, target);
+  }
 
   if (coordsEqual(nextPlayers[enemySide].pos, target)) {
     applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements);
   }
   applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
+  if (isAyaUnit(nextPlayers[actor])) {
+    nextPlayers[actor].effects.ayaNextAttackBuff = false;
+    activateAyaStealthIfReady(nextPlayers[actor]);
+  }
+
+  const actionStateForQueue: GameState = {
+    ...state,
+    players: nextPlayers,
+    walls: nextWalls,
+    turn: clearTurnPending({
+      ...state.turn,
+      acted: false,
+    }),
+  };
+  const nextTurn = tryQueueAyaMoveAfterAttack(actionStateForQueue, actor, allowPassiveTrigger, hitAyaSigil);
 
   const winner = getWinnerFromPlayers({
     ...state,
@@ -885,14 +1133,10 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
     players: nextPlayers,
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      `${getSideLabel(actor)}进行了普通攻击`,
+      resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}进行了普通攻击`, "attack"),
       ...damageAnnouncements,
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null,
-    },
+    turn: nextTurn,
     winner,
   };
   return { ok: true, state: nextState };
@@ -905,6 +1149,9 @@ function applyUnlockSkill(state: GameState, command: Command): ApplyOutcome {
   const actor = command.actor;
   if (!canIssueCommandByTurn(state, actor)) {
     return { ok: false, reason: "cannot unlock now" };
+  }
+  if (state.turn.pendingAction !== null) {
+    return { ok: false, reason: "cannot unlock during pending action" };
   }
 
   const self = state.players[actor];
@@ -936,7 +1183,7 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid needle command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
 
@@ -947,12 +1194,6 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
   if (!self.skills.role1) {
     return { ok: false, reason: "skill role1 not unlocked" };
   }
-  if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
-    return { ok: false, reason: "invalid spirit spend" };
-  }
-  if (self.stats.spirit < command.spirit) {
-    return { ok: false, reason: "not enough spirit" };
-  }
 
   const target = keyToCoord(command.to);
   if (!target) {
@@ -961,6 +1202,132 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
   const ray = buildRayPath(self.pos, target);
   if (!ray || ray.cells.length === 0) {
     return { ok: false, reason: "invalid needle direction" };
+  }
+
+  if (isAya(state, actor)) {
+    if (!Number.isInteger(command.spirit) || command.spirit !== 2) {
+      return { ok: false, reason: "aya role1 spirit must be 2" };
+    }
+    if (self.stats.spirit < 2) {
+      return { ok: false, reason: "not enough spirit" };
+    }
+
+    const enemySide = oppositeSide(actor);
+    const nextPlayers = clonePlayers(state.players);
+    const nextWalls = cloneWalls(state.walls);
+    const damageAnnouncements: string[] = [];
+    const projectiles: ProjectileEffect[] = [];
+
+    for (let index = 0; index < 2; index += 1) {
+      const traveled: Coord[] = [];
+      let traveledExitT = 0;
+      let endT = ray.maxT;
+      let cellIndex = 0;
+
+      while (cellIndex < ray.cells.length) {
+        const groupEnterT = ray.cells[cellIndex].enterT;
+        const group: RayPathCell[] = [];
+        while (
+          cellIndex < ray.cells.length &&
+          Math.abs(ray.cells[cellIndex].enterT - groupEnterT) <= RAY_EPSILON
+        ) {
+          const hit = ray.cells[cellIndex];
+          group.push(hit);
+          traveled.push(hit.coord);
+          traveledExitT = Math.max(traveledExitT, hit.exitT);
+          cellIndex += 1;
+        }
+
+        let hitCoord: Coord | null = null;
+        let hitType: "wall" | "enemy" | null = null;
+        for (const hit of group) {
+          if (isWallAliveInMap(nextWalls, hit.coord)) {
+            hitCoord = hit.coord;
+            hitType = "wall";
+            break;
+          }
+        }
+        if (!hitType) {
+          for (const hit of group) {
+            if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
+              hitCoord = hit.coord;
+              hitType = "enemy";
+              break;
+            }
+          }
+        }
+
+        if (!hitCoord || !hitType) {
+          continue;
+        }
+
+        if (hitType === "wall") {
+          const damaged = applyWallDamage(nextPlayers, nextWalls, actor, hitCoord, 1);
+          if (damaged) {
+            const key = coordToKey(hitCoord);
+            if (nextWalls[key]?.alive) {
+              nextWalls[key].ayaSigil = true;
+            }
+          }
+        } else {
+          const damaged = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements);
+          if (damaged && nextPlayers[enemySide].stats.hp > 0) {
+            nextPlayers[enemySide].effects.ayaSigil = true;
+          }
+        }
+
+        endT = Math.max(groupEnterT + RAY_EPSILON, traveledExitT);
+        break;
+      }
+
+      if (traveledExitT > RAY_EPSILON && endT === ray.maxT) {
+        endT = traveledExitT;
+      }
+
+      projectiles.push(
+        buildProjectileEffect(
+          "wind",
+          actor,
+          nextPlayers[actor].pos,
+          traveled,
+          index * NEEDLE_INTERVAL_MS,
+          getRayPoint(ray, endT),
+        ),
+      );
+    }
+
+    nextPlayers[actor].stats.spirit -= 2;
+
+    const winner = getWinnerFromPlayers({
+      ...state,
+      players: nextPlayers,
+      walls: nextWalls,
+    });
+
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        walls: nextWalls,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          resolvePrimaryAnnouncement(state, actor, "文发射了旋风", "aya-role1"),
+          ...damageAnnouncements,
+        ]),
+        turn: markTurnActionEnded(state.turn),
+        winner,
+      },
+      effects: {
+        projectiles,
+      },
+    };
+  }
+
+  if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
+    return { ok: false, reason: "invalid spirit spend" };
+  }
+  if (self.stats.spirit < command.spirit) {
+    return { ok: false, reason: "not enough spirit" };
   }
 
   const enemySide = oppositeSide(actor);
@@ -1042,11 +1409,7 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
       "灵梦发射了封魔针",
       ...damageAnnouncements,
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null,
-    },
+    turn: markTurnActionEnded(state.turn),
     winner,
   };
 
@@ -1066,7 +1429,7 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid amulet command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
 
@@ -1088,6 +1451,102 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
   }
+
+  if (isAya(state, actor)) {
+    const legalMove = containsCoord(getLegalMoveTargets(state, actor), target);
+    const legalAttack = containsCoord(getLegalAttackTargets(state, actor), target);
+    if (!legalMove && !legalAttack) {
+      return { ok: false, reason: "illegal aya role2 target" };
+    }
+
+    const nextPlayers = clonePlayers(state.players);
+    const nextWalls = cloneWalls(state.walls);
+    const damageAnnouncements: string[] = [];
+    nextPlayers[actor].stats.spirit -= 1;
+    const primaryAnnouncement = resolvePrimaryAnnouncement(state, actor, "文进行了强化", "aya-role2");
+
+    if (legalMove) {
+      const beforeMove = { ...nextPlayers[actor].pos };
+      nextPlayers[actor].effects.ayaNextAttackBuff = true;
+      nextPlayers[actor].pos = { ...target };
+      if (isOrthogonalStep(beforeMove, target)) {
+        nextPlayers[actor].stats.spirit = Math.min(
+          nextPlayers[actor].stats.maxSpirit,
+          nextPlayers[actor].stats.spirit + 1,
+        );
+      }
+      nextPlayers[actor].effects.ayaNextMoveBuff = false;
+      activateAyaStealthIfReady(nextPlayers[actor]);
+
+      const queueState: GameState = {
+        ...state,
+        players: nextPlayers,
+        walls: nextWalls,
+        turn: clearTurnPending({
+          ...state.turn,
+          acted: false,
+        }),
+      };
+      const nextTurn = tryQueueAyaPassiveAttack(queueState, actor, true);
+      return {
+        ok: true,
+        state: {
+          ...state,
+          players: nextPlayers,
+          walls: nextWalls,
+          announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [primaryAnnouncement]),
+          turn: nextTurn,
+        },
+      };
+    }
+
+    const enemySide = oppositeSide(actor);
+    const attackerBefore = nextPlayers[actor];
+    nextPlayers[actor].effects.ayaNextMoveBuff = true;
+    const damage = getAttackDamage(attackerBefore);
+    const hitAyaSigil = hasAyaSigilOnTarget(state.players, state.walls, actor, target);
+    if (hitAyaSigil) {
+      clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, target);
+    }
+    if (coordsEqual(nextPlayers[enemySide].pos, target)) {
+      applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements);
+    }
+    applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
+    nextPlayers[actor].effects.ayaNextAttackBuff = false;
+    activateAyaStealthIfReady(nextPlayers[actor]);
+
+    const winner = getWinnerFromPlayers({
+      ...state,
+      players: nextPlayers,
+      walls: nextWalls,
+    });
+    const queueState: GameState = {
+      ...state,
+      players: nextPlayers,
+      walls: nextWalls,
+      turn: clearTurnPending({
+        ...state.turn,
+        acted: false,
+      }),
+    };
+    const nextTurn = tryQueueAyaMoveAfterAttack(queueState, actor, true, hitAyaSigil);
+
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        walls: nextWalls,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          primaryAnnouncement,
+          ...damageAnnouncements,
+        ]),
+        turn: nextTurn,
+        winner,
+      },
+    };
+  }
+
   const ray = buildRayPath(self.pos, target);
   if (!ray || ray.cells.length === 0) {
     return { ok: false, reason: "invalid amulet direction" };
@@ -1130,11 +1589,7 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
       "灵梦发射了符札",
       ...damageAnnouncements,
     ]),
-    turn: {
-      ...state.turn,
-      acted: true,
-      pendingAnnouncement: null,
-    },
+    turn: markTurnActionEnded(state.turn),
     winner,
   };
 
@@ -1161,7 +1616,7 @@ function applyOrb(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid orb command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
 
@@ -1180,6 +1635,25 @@ function applyOrb(state: GameState, command: Command): ApplyOutcome {
   }
 
   const nextPlayers = clonePlayers(state.players);
+  if (isAya(state, actor)) {
+    if (command.spirit !== 1) {
+      return { ok: false, reason: "aya role3 spirit must be 1" };
+    }
+    nextPlayers[actor].stats.spirit -= 1;
+    nextPlayers[actor].effects.ayaStealthReady = true;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          resolvePrimaryAnnouncement(state, actor, "文准备了隐身", "aya-role3", true),
+        ]),
+        turn: markTurnActionEnded(state.turn),
+      },
+    };
+  }
+
   nextPlayers[actor].stats.spirit -= command.spirit;
   nextPlayers[actor].effects.orbVisionRadius = command.spirit;
   nextPlayers[actor].effects.orbTurns = command.spirit;
@@ -1192,11 +1666,7 @@ function applyOrb(state: GameState, command: Command): ApplyOutcome {
       announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
         `灵梦获得了半径为${command.spirit}的视野`,
       ]),
-      turn: {
-        ...state.turn,
-        acted: true,
-        pendingAnnouncement: null,
-      },
+      turn: markTurnActionEnded(state.turn),
     },
   };
 }
@@ -1206,7 +1676,7 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid blink command type" };
   }
   const actor = command.actor;
-  if (!canIssueAction(state, actor)) {
+  if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
 
@@ -1233,6 +1703,58 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "illegal blink target" };
   }
 
+  if (isAya(state, actor)) {
+    const nextPlayers = clonePlayers(state.players);
+    const nextWalls = cloneWalls(state.walls);
+    const damageAnnouncements: string[] = [];
+    const damage = floorDamage(self.stats.atk);
+    const enemySide = oppositeSide(actor);
+    let hitEnemy = false;
+
+    const ray = buildRayPath(self.pos, target);
+    if (ray) {
+      for (const hit of ray.cells) {
+        if (coordsEqual(hit.coord, target)) {
+          break;
+        }
+        if (applyWallDamage(nextPlayers, nextWalls, actor, hit.coord, damage)) {
+          nextWalls[coordToKey(hit.coord)].ayaSigil = false;
+        }
+        if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
+          hitEnemy = applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements) || hitEnemy;
+        }
+      }
+    }
+
+    const spiritAfter = nextPlayers[actor].stats.spirit - command.spirit + (hitEnemy ? command.spirit : 0);
+    nextPlayers[actor].stats.spirit = Math.max(
+      0,
+      Math.min(nextPlayers[actor].stats.maxSpirit, spiritAfter),
+    );
+    nextPlayers[actor].pos = { ...target };
+
+    const winner = getWinnerFromPlayers({
+      ...state,
+      players: nextPlayers,
+      walls: nextWalls,
+    });
+
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        walls: nextWalls,
+        announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
+          resolvePrimaryAnnouncement(state, actor, "文进行了位移", "aya-role4"),
+          ...damageAnnouncements,
+        ]),
+        turn: markTurnActionEnded(state.turn),
+        winner,
+      },
+    };
+  }
+
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= command.spirit;
   nextPlayers[actor].pos = { ...target };
@@ -1245,23 +1767,23 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
       announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
         `灵梦闪现到了半径为${command.spirit}内的一格`,
       ]),
-      turn: {
-        ...state.turn,
-        acted: true,
-        pendingAnnouncement: null,
-      },
+      turn: markTurnActionEnded(state.turn),
     },
   };
 }
 
-function decrementOrbWhenTurnStarts(players: Record<Side, UnitState>, enteringSide: Side): void {
+function decrementTimedEffectsWhenTurnStarts(players: Record<Side, UnitState>, enteringSide: Side): void {
   const effect = players[enteringSide].effects;
   if (effect.orbTurns <= 0) {
-    return;
+    // continue
+  } else {
+    effect.orbTurns = Math.max(0, effect.orbTurns - 1);
+    if (effect.orbTurns === 0) {
+      effect.orbVisionRadius = 0;
+    }
   }
-  effect.orbTurns = Math.max(0, effect.orbTurns - 1);
-  if (effect.orbTurns === 0) {
-    effect.orbVisionRadius = 0;
+  if (effect.ayaStealthTurns > 0) {
+    effect.ayaStealthTurns = Math.max(0, effect.ayaStealthTurns - 1);
   }
 }
 
@@ -1269,7 +1791,7 @@ function advanceTurnState(state: GameState, actor: Side): GameState {
   const nextSide = oppositeSide(actor);
   const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
   const nextPlayers = clonePlayers(state.players);
-  decrementOrbWhenTurnStarts(nextPlayers, nextSide);
+  decrementTimedEffectsWhenTurnStarts(nextPlayers, nextSide);
   return {
     ...state,
     players: nextPlayers,
@@ -1278,6 +1800,8 @@ function advanceTurnState(state: GameState, actor: Side): GameState {
       round: nextRound,
       acted: false,
       pendingAnnouncement: null,
+      pendingAction: null,
+      pendingActionCanTriggerPassive: false,
     },
   };
 }
@@ -1303,7 +1827,7 @@ function applyEndTurn(state: GameState, command: Command): ApplyOutcome {
       {
         ...state,
         announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-          `${getSideLabel(actor)}选择了空过`,
+          resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}选择了空过`, "endturn"),
         ]),
       },
       actor,
@@ -1356,6 +1880,9 @@ function applyCommand(state: GameState, command: Command): ApplyOutcome {
   }
 
   if (command.type === "endTurn" || command.type === "unlockSkill" || applied.state.winner) {
+    return applied;
+  }
+  if (!applied.state.turn.acted) {
     return applied;
   }
 
@@ -1428,8 +1955,10 @@ export function buildPerspective(state: GameState, side: Side): PerspectiveState
 
   const self = state.players[side];
   const enemySide = oppositeSide(side);
-  const enemyPos = state.players[enemySide].pos;
-  const enemyVisible = isVisibleFrom(state, side, enemyPos);
+  const enemyUnit = state.players[enemySide];
+  const enemyPos = enemyUnit.pos;
+  const enemyStealthed = enemyUnit.mechId === "aya" && enemyUnit.effects.ayaStealthTurns > 0;
+  const enemyVisible = !enemyStealthed && isVisibleFrom(state, side, enemyPos);
 
   return {
     side,

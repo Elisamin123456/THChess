@@ -44,6 +44,11 @@ export interface SkillUnlockState {
 export interface UnitEffects {
   orbVisionRadius: number;
   orbTurns: number;
+  ayaStealthReady: boolean;
+  ayaStealthTurns: number;
+  ayaNextAttackBuff: boolean;
+  ayaNextMoveBuff: boolean;
+  ayaSigil: boolean;
 }
 
 export interface UnitState {
@@ -60,13 +65,18 @@ export interface WallState {
   hp: number;
   maxHp: number;
   alive: boolean;
+  ayaSigil: boolean;
 }
+
+export type PendingActionKind = "move" | "attack";
 
 export interface TurnState {
   side: Side;
   round: number;
   acted: boolean;
   pendingAnnouncement: string | null;
+  pendingAction: PendingActionKind | null;
+  pendingActionCanTriggerPassive: boolean;
 }
 
 export interface GameState {
@@ -167,7 +177,7 @@ export type Command =
   | BlinkCommand;
 
 export interface ProjectileEffect {
-  kind: "needle" | "amulet";
+  kind: "needle" | "amulet" | "wind";
   actor: Side;
   origin: string;
   path: string[];
