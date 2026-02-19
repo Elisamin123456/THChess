@@ -22,12 +22,12 @@ import {
   RoleSkillId,
   Side,
   SkillId,
+  UnitState,
   coordToDisplayKey,
   coordToKey,
   getSideLabel,
   isRoleSkillId,
   keyToCoord,
-  oppositeSide,
 } from "./protocol";
 
 interface Assets {
@@ -35,12 +35,14 @@ interface Assets {
   grass: HTMLImageElement;
   spawn: HTMLImageElement;
   wall: HTMLImageElement;
+  markers: [HTMLImageElement, HTMLImageElement, HTMLImageElement, HTMLImageElement];
   chars: Record<MechId, HTMLImageElement>;
   needle: HTMLImageElement;
   amulet: HTMLImageElement;
   wind: HTMLImageElement;
   sigil: HTMLImageElement;
   orbEffect: HTMLImageElement;
+  koishiHeart: HTMLImageElement;
   roleIconsByMech: Record<MechId, Partial<Record<RoleSkillId, SkillIconSet>>>;
   numbers: Map<number, HTMLImageElement>;
   numberSrc: Map<number, string>;
@@ -224,14 +226,23 @@ async function loadAssets(): Promise<Assets> {
     wind,
     sigil,
     orbEffect,
+    koishiHeart,
     reimuRole1,
     reimuRole2,
     reimuRole3,
     reimuRole4,
+    koishiRole1,
+    koishiRole2,
+    koishiRole3,
+    koishiRole4,
     ayaRole1,
     ayaRole2,
     ayaRole3,
     ayaRole4,
+    marker1,
+    marker2,
+    marker3,
+    marker4,
   ] =
     await Promise.all([
       loadImage("./assets/tiles/ground.png"),
@@ -247,21 +258,30 @@ async function loadAssets(): Promise<Assets> {
       loadImage("./assets/bullet/aya/wind.png"),
       loadImage("./assets/bullet/aya/sigil.png"),
       loadImage("./assets/bullet/reimu/yinyangorb.png"),
+      loadImage("./assets/bullet/koishi/heart.png"),
       loadRoleIconSet("./assets/skill/reimu", "reimu_1"),
       loadRoleIconSet("./assets/skill/reimu", "reimu_2"),
       loadRoleIconSet("./assets/skill/reimu", "reimu_3"),
       loadRoleIconSet("./assets/skill/reimu", "reimu_4"),
+      loadSingleRoleIcon("./assets/skill/koishi/koishi1.png"),
+      loadSingleRoleIcon("./assets/skill/koishi/koishi2.png"),
+      loadSingleRoleIcon("./assets/skill/koishi/koishi3.png"),
+      loadSingleRoleIcon("./assets/skill/koishi/koishi4.png"),
       loadSingleRoleIcon("./assets/skill/aya/aya1.png"),
       loadSingleRoleIcon("./assets/skill/aya/aya2.png"),
       loadSingleRoleIcon("./assets/skill/aya/aya3.png"),
       loadSingleRoleIcon("./assets/skill/aya/aya4.png"),
+      loadImage("./assets/markers/mark1.png"),
+      loadImage("./assets/markers/mark2.png"),
+      loadImage("./assets/markers/mark3.png"),
+      loadImage("./assets/markers/mark4.png"),
     ]);
 
   const numbers = new Map<number, HTMLImageElement>();
   const numberSrc = new Map<number, string>();
   const tasks: Array<Promise<void>> = [];
-  for (let value = 1; value <= 10; value += 1) {
-    const file = value === 10 ? "no10.png" : `no${value}.png`;
+  for (let value = 0; value <= 10; value += 1) {
+    const file = value === 0 ? "no.png" : value === 10 ? "no10.png" : `no${value}.png`;
     const src = `./assets/number/${file}`;
     numberSrc.set(value, src);
     tasks.push(
@@ -277,6 +297,7 @@ async function loadAssets(): Promise<Assets> {
     grass,
     spawn,
     wall,
+    markers: [marker1, marker2, marker3, marker4],
     chars: {
       reimu,
       marisa,
@@ -288,6 +309,7 @@ async function loadAssets(): Promise<Assets> {
     wind,
     sigil,
     orbEffect,
+    koishiHeart,
     roleIconsByMech: {
       reimu: {
         role1: reimuRole1,
@@ -296,7 +318,12 @@ async function loadAssets(): Promise<Assets> {
         role4: reimuRole4,
       },
       marisa: {},
-      koishi: {},
+      koishi: {
+        role1: koishiRole1,
+        role2: koishiRole2,
+        role3: koishiRole3,
+        role4: koishiRole4,
+      },
       aya: {
         role1: ayaRole1,
         role2: ayaRole2,
@@ -361,19 +388,19 @@ function easeInQuad(t: number): number {
   return t * t;
 }
 
-function getDisplayNumberTexture(assets: Assets, value: number): HTMLImageElement | null {
-  if (value <= 0) {
+function getDisplayNumberTexture(assets: Assets, value: number, allowZero = false): HTMLImageElement | null {
+  if (value < 0 || (!allowZero && value === 0)) {
     return null;
   }
-  const clamped = Math.min(10, Math.floor(value));
+  const clamped = allowZero ? Math.max(0, Math.min(10, Math.floor(value))) : Math.min(10, Math.floor(value));
   return assets.numbers.get(clamped) ?? null;
 }
 
-function getDisplayNumberSrc(assets: Assets, value: number): string | null {
-  if (value <= 0) {
+function getDisplayNumberSrc(assets: Assets, value: number, allowZero = false): string | null {
+  if (value < 0 || (!allowZero && value === 0)) {
     return null;
   }
-  const clamped = Math.min(10, Math.floor(value));
+  const clamped = allowZero ? Math.max(0, Math.min(10, Math.floor(value))) : Math.min(10, Math.floor(value));
   return assets.numberSrc.get(clamped) ?? null;
 }
 
@@ -383,12 +410,89 @@ function isVariableSkill(skill: SkillId | null): boolean {
 
 function isRayIndicatorSkill(skill: SkillId | null, mechId: MechId | null): boolean {
   if (skill === "role1" || skill === "role4") {
-    return true;
+    return mechId !== "koishi";
   }
   if (skill === "role2") {
-    return mechId !== "aya";
+    return mechId !== "aya" && mechId !== "koishi";
   }
   return false;
+}
+
+function getUnitDisplayBadges(unit: UnitState): Array<{ value: number; allowZero?: boolean }> {
+  if (unit.mechId === "koishi") {
+    return [
+      ...(unit.effects.koishiStealthTurns > 0 ? [{ value: unit.effects.koishiStealthTurns }] : []),
+      ...(unit.effects.koishiPolygraphTurns > 0 ? [{ value: unit.effects.koishiPolygraphTurns }] : []),
+      ...(unit.effects.koishiPhilosophyActive ? [{ value: 1 }] : []),
+    ];
+  }
+  if (unit.mechId === "aya") {
+    const stealthTurns =
+      unit.effects.ayaStealthTurns > 0 ? unit.effects.ayaStealthTurns : unit.effects.ayaStealthReady ? 2 : 0;
+    return stealthTurns > 0 ? [{ value: stealthTurns }] : [];
+  }
+  if (unit.effects.orbTurns > 0) {
+    return [{ value: unit.effects.orbTurns }];
+  }
+  return [];
+}
+
+function getKoishiAuraTiles(center: Coord): Coord[] {
+  const result: Coord[] = [];
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const x = center.x + dx;
+      const y = center.y + dy;
+      if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT) {
+        continue;
+      }
+      result.push({ x, y });
+    }
+  }
+  return result;
+}
+
+function hasPerspectivePiece(perspective: PerspectiveState, side: Side): boolean {
+  return Boolean(perspective.pieces[side]);
+}
+
+function drawBadgeStrip(
+  ctx: CanvasRenderingContext2D,
+  assets: Assets,
+  px: number,
+  py: number,
+  tile: number,
+  badges: Array<{ value: number; allowZero?: boolean }>,
+): void {
+  if (badges.length === 0) {
+    return;
+  }
+  const badgeSize = Math.floor(tile * 0.34);
+  const gap = 2;
+  for (let index = 0; index < badges.length; index += 1) {
+    const badge = badges[index];
+    const texture = getDisplayNumberTexture(assets, badge.value, Boolean(badge.allowZero));
+    if (!texture) {
+      continue;
+    }
+    const drawX = px + tile - badgeSize - 2 - index * (badgeSize + gap);
+    const drawY = py + 2;
+    ctx.drawImage(texture, drawX, drawY, badgeSize, badgeSize);
+  }
+}
+
+function shouldDrawKoishiAura(payload: RenderPayload, side: Side): boolean {
+  const unit = payload.state.players[side];
+  if (unit.mechId !== "koishi" || !unit.effects.koishiHeartAuraActive) {
+    return false;
+  }
+  if (side === payload.localSide) {
+    return true;
+  }
+  return hasPerspectivePiece(payload.perspective, side);
 }
 
 export async function createGameView(root: HTMLElement): Promise<GameView> {
@@ -412,6 +516,8 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   let animationFrame = 0;
   let hoverCoord: Coord | null = null;
   let hoverBpOption: BpBanOptionId | null = null;
+  let selectedMarkerIndex = 0;
+  const localMarkers = new Map<string, number>();
 
   let projectileId = 0;
   let projectileBatchId = 0;
@@ -477,17 +583,29 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   skillLayout.className = "skill-layout";
   skillPanel.appendChild(skillLayout);
 
-  const skillLeft = document.createElement("div");
-  skillLeft.className = "skill-left";
-  skillLayout.appendChild(skillLeft);
+  const battleSkillSection = document.createElement("div");
+  battleSkillSection.className = "battle-skill-section";
+  skillLayout.appendChild(battleSkillSection);
 
   const basicSkillGrid = document.createElement("div");
   basicSkillGrid.className = "basic-skill-grid";
-  skillLeft.appendChild(basicSkillGrid);
+  battleSkillSection.appendChild(basicSkillGrid);
+
+  const roleActionColumn = document.createElement("div");
+  roleActionColumn.className = "role-action-column";
+  battleSkillSection.appendChild(roleActionColumn);
 
   const roleSkillGrid = document.createElement("div");
   roleSkillGrid.className = "role-skill-grid";
-  skillLeft.appendChild(roleSkillGrid);
+  roleActionColumn.appendChild(roleSkillGrid);
+
+  const skillActions = document.createElement("div");
+  skillActions.className = "skill-actions";
+  roleActionColumn.appendChild(skillActions);
+
+  const markSkillGrid = document.createElement("div");
+  markSkillGrid.className = "mark-skill-grid";
+  battleSkillSection.appendChild(markSkillGrid);
 
   const bpSkillSection = document.createElement("div");
   bpSkillSection.className = "bp-skill-section";
@@ -502,6 +620,18 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   const bpSkillGrid = document.createElement("div");
   bpSkillGrid.className = "bp-skill-grid";
   bpSkillSection.appendChild(bpSkillGrid);
+
+  const bpSkillActions = document.createElement("div");
+  bpSkillActions.className = "bp-skill-actions";
+  bpSkillSection.appendChild(bpSkillActions);
+
+  const bpConfirmButton = document.createElement("button");
+  bpConfirmButton.className = "end-turn-btn hollow-frame";
+  bpConfirmButton.textContent = "BP Confirm";
+  bpConfirmButton.addEventListener("click", () => {
+    handlers.onBpConfirm();
+  });
+  bpSkillActions.appendChild(bpConfirmButton);
 
   const bpSkillItems = new Map<RoleSkillId, HTMLDivElement>();
   for (const roleSkillId of ["role1", "role2", "role3", "role4"] as RoleSkillId[]) {
@@ -724,6 +854,32 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     skillButtons.set(skill.id, button);
   }
 
+  const markButtons: HTMLButtonElement[] = [];
+
+  function refreshMarkerSelection(): void {
+    markButtons.forEach((button, index) => {
+      button.classList.toggle("mark-selected", index === selectedMarkerIndex);
+    });
+  }
+
+  for (let index = 0; index < assets.markers.length; index += 1) {
+    const button = document.createElement("button");
+    button.className = "mark-btn hollow-frame";
+    const icon = document.createElement("img");
+    icon.className = "mark-btn-icon";
+    icon.src = assets.markers[index].src;
+    icon.alt = `mark-${index + 1}`;
+    icon.draggable = false;
+    button.appendChild(icon);
+    button.addEventListener("click", () => {
+      selectedMarkerIndex = index;
+      refreshMarkerSelection();
+    });
+    markSkillGrid.appendChild(button);
+    markButtons.push(button);
+  }
+  refreshMarkerSelection();
+
   const spiritPopup = document.createElement("div");
   spiritPopup.className = "spirit-popup";
 
@@ -744,10 +900,6 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   spiritPopup.appendChild(spiritDown);
 
   skillPanel.appendChild(spiritPopup);
-
-  const skillActions = document.createElement("div");
-  skillActions.className = "skill-actions";
-  skillLayout.appendChild(skillActions);
 
   const endTurnButton = document.createElement("button");
   endTurnButton.className = "end-turn-btn hollow-frame";
@@ -993,6 +1145,29 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       }
     }
 
+    for (const side of ["blue", "red"] as Side[]) {
+      if (!shouldDrawKoishiAura(payload, side)) {
+        continue;
+      }
+      const koishi = payload.state.players[side];
+      for (const coord of getKoishiAuraTiles(koishi.pos)) {
+        const cell = getCell(payload.perspective.cells, coord.x, coord.y);
+        if (!cell.visible) {
+          continue;
+        }
+        const px = left + coord.x * tile;
+        const py = top + coord.y * tile;
+        const size = Math.floor(tile * 0.42);
+        ctx.drawImage(
+          assets.koishiHeart,
+          px + Math.floor((tile - size) * 0.5),
+          py + Math.floor((tile - size) * 0.5),
+          size,
+          size,
+        );
+      }
+    }
+
     const now = performance.now();
 
     const drawPiece = (side: Side): void => {
@@ -1032,19 +1207,34 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
         const orbX = centerX + Math.cos(angle) * orbitRadius - orbSize * 0.5;
         const orbY = centerY + Math.sin(angle) * orbitRadius - orbSize * 0.5;
         ctx.drawImage(assets.orbEffect, orbX, orbY, orbSize, orbSize);
-
-        const turnTexture = getDisplayNumberTexture(assets, unit.effects.orbTurns);
-        if (turnTexture) {
-          const badgeSize = Math.floor(tile * 0.34);
-          ctx.drawImage(turnTexture, px + tile - badgeSize - 2, py + 2, badgeSize, badgeSize);
-        }
       }
+      drawBadgeStrip(ctx, assets, px, py, tile, getUnitDisplayBadges(unit));
     };
 
     drawPiece("blue");
     drawPiece("red");
 
     const activeSkill = payload.input.activeSkill;
+    if (activeSkill === null && !payload.input.quickCast) {
+      const markerSize = Math.floor(tile * 0.58);
+      for (const [coordKey, markerIndex] of localMarkers) {
+        const coord = keyToCoord(coordKey);
+        if (!coord) {
+          continue;
+        }
+        const marker = assets.markers[markerIndex] ?? assets.markers[0];
+        const px = left + coord.x * tile;
+        const py = top + coord.y * tile;
+        ctx.drawImage(
+          marker,
+          px + Math.floor((tile - markerSize) * 0.5),
+          py + Math.floor((tile - markerSize) * 0.5),
+          markerSize,
+          markerSize,
+        );
+      }
+    }
+
     const selfMech = payload.state.players[payload.localSide].mechId;
     if (isRayIndicatorSkill(activeSkill, selfMech) && hoverCoord) {
       const self = payload.state.players[payload.localSide].pos;
@@ -1234,6 +1424,23 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     if (!coord) {
       return;
     }
+    if (lastPayload && lastPayload.input.activeSkill === null && !lastPayload.input.quickCast) {
+      const selfPos = lastPayload.state.players[lastPayload.localSide].pos;
+      if (coord.x !== selfPos.x || coord.y !== selfPos.y) {
+        const key = coordToKey(coord);
+        const clickedCell = getCell(lastPayload.perspective.cells, coord.x, coord.y);
+        if (localMarkers.has(key)) {
+          localMarkers.delete(key);
+          render(lastPayload);
+          return;
+        }
+        if (!clickedCell.visible) {
+          localMarkers.set(key, selectedMarkerIndex);
+          render(lastPayload);
+          return;
+        }
+      }
+    }
     handlers.onCellClick(coord);
   });
 
@@ -1242,7 +1449,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     const self = payload.state.players[payload.localSide];
     const mech = getMechDefinition(self.mechId);
 
-    skillLeft.style.display = "flex";
+    battleSkillSection.style.display = "flex";
     bpSkillSection.style.display = "none";
 
     for (const skill of SKILLS) {
@@ -1281,14 +1488,36 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       }
     }
 
-    const role3Turns = self.mechId === "aya" ? self.effects.ayaStealthTurns : self.effects.orbTurns;
+    const roleBadgeValues: Partial<Record<RoleSkillId, { value: number; allowZero?: boolean }>> = {};
+    if (self.mechId === "koishi") {
+      if (self.effects.koishiStealthTurns > 0) {
+        roleBadgeValues.role1 = { value: self.effects.koishiStealthTurns };
+      }
+      if (self.effects.koishiPolygraphTurns > 0) {
+        roleBadgeValues.role3 = { value: self.effects.koishiPolygraphTurns };
+      }
+      if (self.effects.koishiPhilosophyActive) {
+        roleBadgeValues.role4 = {
+          value: 1,
+        };
+      }
+    } else if (self.mechId === "aya") {
+      const stealthTurns =
+        self.effects.ayaStealthTurns > 0 ? self.effects.ayaStealthTurns : self.effects.ayaStealthReady ? 2 : 0;
+      if (stealthTurns > 0) {
+        roleBadgeValues.role3 = { value: stealthTurns };
+      }
+    } else if (self.effects.orbTurns > 0) {
+      roleBadgeValues.role3 = { value: self.effects.orbTurns };
+    }
     for (const [skill, badge] of roleDurationBadges) {
-      if (skill !== "role3") {
+      const info = roleBadgeValues[skill];
+      if (!info || !self.skills[skill] || !isRoleSkillImplemented(self.mechId, skill)) {
         badge.style.display = "none";
         continue;
       }
-      const src = getDisplayNumberSrc(assets, role3Turns);
-      if (!src || !self.skills.role3 || !isRoleSkillImplemented(self.mechId, "role3")) {
+      const src = getDisplayNumberSrc(assets, info.value, Boolean(info.allowZero));
+      if (!src) {
         badge.style.display = "none";
         continue;
       }
@@ -1396,15 +1625,25 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
   }
 
   function renderBpAnnouncement(payload: BpRenderPayload): void {
-    const local = payload.localSide;
-    const enemy = oppositeSide(local);
-    const localState = payload.bp.sides[local];
-    const enemyState = payload.bp.sides[enemy];
-    const rows: Array<{ side: Side; text: string }> = [
-      { side: local, text: `Your Ban (to enemy): ${getBpOptionLabel(localState.ban)}` },
-      { side: local, text: `Your Pick: ${getBpOptionLabel(localState.pick)}` },
-      { side: enemy, text: `Enemy Ban (to you): ${getBpOptionLabel(enemyState.ban)}` },
-      { side: enemy, text: `Enemy Pick: ${getBpOptionLabel(enemyState.pick)}` },
+    const blueState = payload.bp.sides.blue;
+    const redState = payload.bp.sides.red;
+    const activeStep =
+      payload.bp.phase === "blueBan"
+        ? 1
+        : payload.bp.phase === "redBan" || payload.bp.phase === "redPick"
+          ? 2
+          : payload.bp.phase === "bluePick"
+            ? 3
+            : 0;
+
+    const rows: Array<{ side: Side; text: string; step: number }> = [
+      { side: "blue", step: 1, text: `1. Blue Ban: ${getBpOptionLabel(blueState.ban)}` },
+      {
+        side: "red",
+        step: 2,
+        text: `2. Red Ban/Pick: Ban ${getBpOptionLabel(redState.ban)} | Pick ${getBpOptionLabel(redState.pick)}`,
+      },
+      { side: "blue", step: 3, text: `3. Blue Pick: ${getBpOptionLabel(blueState.pick)}` },
     ];
 
     announcementList.innerHTML = "";
@@ -1412,6 +1651,9 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       const item = document.createElement("div");
       item.className = "announcement-item";
       item.classList.add(row.side === "blue" ? "announcement-blue" : "announcement-red");
+      if (row.step === activeStep) {
+        item.style.borderColor = "#fff";
+      }
       item.textContent = row.text;
       announcementList.appendChild(item);
     }
@@ -1421,7 +1663,7 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     hideUnlockPopup();
     hideTooltip();
     spiritPopup.style.display = "none";
-    skillLeft.style.display = "none";
+    battleSkillSection.style.display = "none";
     bpSkillSection.style.display = "flex";
 
     let mechId: MechId | null = null;
@@ -1449,14 +1691,14 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
 
     const turn = getBpTurn(payload.bp);
     if (!turn) {
-      endTurnButton.textContent = "BP Done";
-      endTurnButton.disabled = true;
+      bpConfirmButton.textContent = "BP Done";
+      bpConfirmButton.disabled = true;
       return;
     }
 
     if (turn.side !== payload.localSide) {
-      endTurnButton.textContent = `Waiting for ${getSideLabel(turn.side)}`;
-      endTurnButton.disabled = true;
+      bpConfirmButton.textContent = `Waiting for ${getSideLabel(turn.side)}`;
+      bpConfirmButton.disabled = true;
       return;
     }
 
@@ -1468,8 +1710,8 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
         ? true
         : selectedOption !== "none" && isBpOptionEnabled(payload.bp, payload.localSide, selectedOption));
 
-    endTurnButton.textContent = turn.action === "ban" ? "Confirm Ban" : "Confirm Pick";
-    endTurnButton.disabled = !payload.connected || !hasSelection || !validSelection;
+    bpConfirmButton.textContent = turn.action === "ban" ? "Confirm Ban" : "Confirm Pick";
+    bpConfirmButton.disabled = !payload.connected || !hasSelection || !validSelection;
   }
 
   function drawBpBoard(payload: BpRenderPayload): void {
@@ -1489,26 +1731,162 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
     boardMetrics = null;
     bpCardLayouts.length = 0;
 
-    const cols = 3;
-    const rows = 2;
-    const paddingX = Math.max(12, Math.floor(w * 0.035));
-    const paddingY = Math.max(12, Math.floor(h * 0.06));
-    const gapX = Math.max(10, Math.floor(w * 0.02));
-    const gapY = Math.max(10, Math.floor(h * 0.03));
-    const cardW = Math.floor((w - paddingX * 2 - gapX * (cols - 1)) / cols);
-    const cardH = Math.floor((h - paddingY * 2 - gapY * (rows - 1)) / rows);
-
     const turn = getBpTurn(payload.bp);
     const banAgainstLocal = getBanAgainst(payload.bp, payload.localSide);
+
+    const paddingX = Math.max(10, Math.floor(w * 0.03));
+    const paddingY = Math.max(10, Math.floor(h * 0.035));
+    const sectionGap = Math.max(8, Math.floor(h * 0.02));
+    const contentW = Math.max(1, w - paddingX * 2);
+    const contentH = Math.max(1, h - paddingY * 2);
+
+    const summaryH = Math.max(64, Math.floor(contentH / 3));
+    const poolTop = paddingY + summaryH + sectionGap;
+    const poolH = Math.max(80, h - poolTop - paddingY);
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+    const sideGap = Math.max(8, Math.floor(contentW * 0.03));
+    const sideW = Math.max(40, Math.floor((contentW - sideGap) / 2));
+    const sideH = summaryH;
+
+    const drawChoiceSlot = (
+      left: number,
+      top: number,
+      width: number,
+      height: number,
+      label: string,
+      value: BpBanOptionId | MechId | null,
+      side: Side,
+    ): void => {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
+      ctx.fillRect(left, top, width, height);
+      ctx.strokeStyle = "rgba(255,255,255,0.34)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left + 0.5, top + 0.5, width - 1, height - 1);
+
+      const labelH = Math.max(12, Math.floor(height * 0.3));
+      ctx.fillStyle = side === "blue" ? "#8abfff" : "#ff9a9a";
+      ctx.font = `${Math.max(9, Math.floor(labelH * 0.6))}px 'zpix', monospace`;
+      ctx.fillText(label, left + width * 0.5, top + labelH * 0.5);
+
+      const bodyX = left + 4;
+      const bodyY = top + labelH + 2;
+      const bodyW = Math.max(1, width - 8);
+      const bodyH = Math.max(1, height - labelH - 6);
+      const bodySide = Math.max(1, Math.min(bodyW, bodyH));
+      const bodySquareX = bodyX + Math.floor((bodyW - bodySide) * 0.5);
+      const bodySquareY = bodyY + Math.floor((bodyH - bodySide) * 0.5);
+
+      if (value === null) {
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(bodySquareX, bodySquareY, bodySide, bodySide);
+        ctx.fillStyle = "#ddd";
+        ctx.font = `${Math.max(9, Math.floor(bodySide * 0.2))}px 'zpix', monospace`;
+        ctx.fillText("Unconfirmed", bodySquareX + bodySide * 0.5, bodySquareY + bodySide * 0.5);
+        return;
+      }
+
+      if (value === "none") {
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(bodySquareX, bodySquareY, bodySide, bodySide);
+        ctx.strokeStyle = "rgba(255,255,255,0.75)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeRect(bodySquareX + 0.5, bodySquareY + 0.5, bodySide - 1, bodySide - 1);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#fff";
+        ctx.font = `${Math.max(9, Math.floor(bodySide * 0.2))}px 'zpix', monospace`;
+        ctx.fillText("Empty Ban", bodySquareX + bodySide * 0.5, bodySquareY + bodySide * 0.5);
+        return;
+      }
+
+      const mechId = value as MechId;
+      const avatar = assets.chars[mechId];
+      const srcW = Math.max(1, avatar.naturalWidth || avatar.width);
+      const srcH = Math.max(1, avatar.naturalHeight || avatar.height);
+      const scale = Math.min(bodySide / srcW, bodySide / srcH);
+      const drawW = Math.max(1, Math.floor(srcW * scale));
+      const drawH = Math.max(1, Math.floor(srcH * scale));
+      const drawX = bodySquareX + Math.floor((bodySide - drawW) * 0.5);
+      const drawY = bodySquareY + Math.floor((bodySide - drawH) * 0.5);
+      ctx.drawImage(avatar, drawX, drawY, drawW, drawH);
+      ctx.fillStyle = "rgba(0,0,0,0.56)";
+      const titleH = Math.max(12, Math.floor(bodySide * 0.34));
+      ctx.fillRect(bodySquareX, bodySquareY + bodySide - titleH, bodySide, titleH);
+      ctx.fillStyle = "#fff";
+      ctx.font = `${Math.max(8, Math.floor(bodySide * 0.2))}px 'zpix', monospace`;
+      ctx.fillText(getMechName(mechId), bodySquareX + bodySide * 0.5, bodySquareY + bodySide - Math.max(6, Math.floor(bodySide * 0.17)));
+    };
+
+    const drawSideSummary = (side: Side, left: number): void => {
+      const panelTop = paddingY;
+      const panelW = sideW;
+      const panelH = sideH;
+      const sideState = payload.bp.sides[side];
+      const sideColor = side === "blue" ? "#66adff" : "#ff6f6f";
+      const panelActive = turn?.side === side;
+
+      ctx.fillStyle = "rgba(255,255,255,0.05)";
+      ctx.fillRect(left, panelTop, panelW, panelH);
+      ctx.strokeStyle = panelActive ? sideColor : "rgba(255,255,255,0.5)";
+      ctx.lineWidth = panelActive ? 2 : 1;
+      ctx.strokeRect(left + 0.5, panelTop + 0.5, panelW - 1, panelH - 1);
+
+      const panelPadX = Math.max(6, Math.floor(panelW * 0.045));
+      const panelPadY = Math.max(6, Math.floor(panelH * 0.05));
+      const panelTitleH = Math.max(14, Math.floor(panelH * 0.17));
+
+      ctx.fillStyle = sideColor;
+      ctx.font = `${Math.max(9, Math.floor(panelTitleH * 0.72))}px 'zpix', monospace`;
+      ctx.fillText(side === "blue" ? "Blue Side" : "Red Side", left + panelW * 0.5, panelTop + panelPadY + panelTitleH * 0.5);
+
+      const slotGap = Math.max(5, Math.floor(panelH * 0.04));
+      const slotW = panelW - panelPadX * 2;
+      const slotH = Math.max(20, Math.floor((panelH - panelPadY * 2 - panelTitleH - slotGap) / 2));
+      const slotTop = panelTop + panelPadY + panelTitleH;
+      drawChoiceSlot(left + panelPadX, slotTop, slotW, slotH, "Ban", sideState.ban, side);
+      drawChoiceSlot(left + panelPadX, slotTop + slotH + slotGap, slotW, slotH, "Pick", sideState.pick, side);
+    };
+
+    drawSideSummary("blue", paddingX);
+    drawSideSummary("red", paddingX + contentW - sideW);
+
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    ctx.fillRect(paddingX, poolTop, contentW, poolH);
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(paddingX + 0.5, poolTop + 0.5, contentW - 1, poolH - 1);
+    ctx.fillStyle = "#fff";
+    ctx.font = `${Math.max(11, Math.floor(poolH * 0.08))}px 'zpix', monospace`;
+    ctx.fillText("Role Pool", paddingX + contentW * 0.5, poolTop + Math.max(12, Math.floor(poolH * 0.08)));
+
+    const optionCount = BP_OPTIONS.length;
+    const innerPadX = Math.max(10, Math.floor(contentW * 0.03));
+    const innerPadBottom = Math.max(8, Math.floor(poolH * 0.06));
+    const gridTop = poolTop + Math.max(18, Math.floor(poolH * 0.14));
+    const gridLeft = paddingX + innerPadX;
+    const gridW = Math.max(1, contentW - innerPadX * 2);
+    const gridH = Math.max(1, poolTop + poolH - gridTop - innerPadBottom);
+    const gap = Math.max(8, Math.floor(Math.min(gridW, gridH) * 0.03));
+    const minCardSize = Math.max(68, Math.floor(Math.min(gridW, gridH) * 0.18));
+    const maxColsByWidth = Math.max(1, Math.floor((gridW + gap) / (minCardSize + gap)));
+    const cols = Math.max(1, Math.min(optionCount, maxColsByWidth));
+    const rows = Math.max(1, Math.ceil(optionCount / cols));
+    const cardWByWidth = Math.floor((gridW - gap * (cols - 1)) / cols);
+    const cardWByHeight = Math.floor((gridH - gap * (rows - 1)) / rows);
+    const cardW = Math.min(cardWByWidth, cardWByHeight);
+    const cardH = cardW;
+    if (cardW <= 0 || cardH <= 0) {
+      return;
+    }
+
     BP_OPTIONS.forEach((option, index) => {
       const col = index % cols;
       const row = Math.floor(index / cols);
-      const left = paddingX + col * (cardW + gapX);
-      const top = paddingY + row * (cardH + gapY);
+      const left = gridLeft + col * (cardW + gap);
+      const top = gridTop + row * (cardH + gap);
       const enabled = payload.connected && isBpOptionEnabled(payload.bp, payload.localSide, option.id);
       const selected = payload.selectedOption === option.id;
       const hovered = hoverBpOption === option.id;
@@ -1519,44 +1897,52 @@ export async function createGameView(root: HTMLElement): Promise<GameView> {
       ctx.fillStyle = enabled ? "#050505" : "#111";
       ctx.fillRect(left, top, cardW, cardH);
 
-      const titleH = Math.max(22, Math.floor(cardH * 0.18));
-      const imagePad = Math.max(8, Math.floor(cardW * 0.08));
+      const titleH = Math.max(20, Math.floor(cardH * 0.2));
+      const imagePad = Math.max(6, Math.floor(cardW * 0.06));
       const imageW = cardW - imagePad * 2;
       const imageH = cardH - titleH - imagePad * 2;
-      const imageX = left + imagePad;
-      const imageY = top + imagePad;
+      const imageSide = Math.max(1, Math.min(imageW, imageH));
+      const imageX = left + imagePad + Math.floor((imageW - imageSide) * 0.5);
+      const imageY = top + imagePad + Math.floor((imageH - imageSide) * 0.5);
 
       if (option.id !== "none") {
         const avatar = assets.chars[option.id];
-        ctx.drawImage(avatar, imageX, imageY, imageW, imageH);
+        const srcW = Math.max(1, avatar.naturalWidth || avatar.width);
+        const srcH = Math.max(1, avatar.naturalHeight || avatar.height);
+        const scale = Math.min(imageSide / srcW, imageSide / srcH);
+        const drawW = Math.max(1, Math.floor(srcW * scale));
+        const drawH = Math.max(1, Math.floor(srcH * scale));
+        const drawX = imageX + Math.floor((imageSide - drawW) * 0.5);
+        const drawY = imageY + Math.floor((imageSide - drawH) * 0.5);
+        ctx.drawImage(avatar, drawX, drawY, drawW, drawH);
       } else {
         ctx.fillStyle = "rgba(255,255,255,0.08)";
-        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.fillRect(imageX, imageY, imageSide, imageSide);
         ctx.strokeStyle = "rgba(255,255,255,0.7)";
         ctx.lineWidth = 1;
         ctx.setLineDash([5, 3]);
-        ctx.strokeRect(imageX + 0.5, imageY + 0.5, imageW - 1, imageH - 1);
+        ctx.strokeRect(imageX + 0.5, imageY + 0.5, imageSide - 1, imageSide - 1);
         ctx.setLineDash([]);
         ctx.fillStyle = "#fff";
-        ctx.font = `${Math.max(12, Math.floor(cardW * 0.12))}px 'zpix', monospace`;
-        ctx.fillText("Empty Ban", left + cardW * 0.5, imageY + imageH * 0.5);
+        ctx.font = `${Math.max(10, Math.floor(cardW * 0.11))}px 'zpix', monospace`;
+        ctx.fillText("Empty Ban", left + cardW * 0.5, imageY + imageSide * 0.5);
       }
 
       if (bannedForLocalPick && option.id !== "none") {
         ctx.fillStyle = "rgba(255, 70, 70, 0.28)";
-        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.fillRect(imageX, imageY, imageSide, imageSide);
         ctx.fillStyle = "#ff8f8f";
-        ctx.font = `${Math.max(10, Math.floor(cardW * 0.09))}px 'zpix', monospace`;
-        ctx.fillText("Banned For You", left + cardW * 0.5, imageY + imageH * 0.5);
+        ctx.font = `${Math.max(9, Math.floor(cardW * 0.09))}px 'zpix', monospace`;
+        ctx.fillText("Banned For You", left + cardW * 0.5, imageY + imageSide * 0.5);
       } else if (!enabled && turn?.side === payload.localSide) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.fillRect(imageX, imageY, imageSide, imageSide);
       }
 
       ctx.fillStyle = "rgba(0,0,0,0.68)";
       ctx.fillRect(left, top + cardH - titleH, cardW, titleH);
       ctx.fillStyle = "#fff";
-      ctx.font = `${Math.max(11, Math.floor(cardW * 0.095))}px 'zpix', monospace`;
+      ctx.font = `${Math.max(10, Math.floor(cardW * 0.095))}px 'zpix', monospace`;
       ctx.fillText(option.name, left + cardW * 0.5, top + cardH - titleH * 0.5);
 
       ctx.strokeStyle = selected ? "#58a8ff" : hovered ? "#9ec8ff" : "#fff";

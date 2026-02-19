@@ -37,6 +37,7 @@ const NEEDLE_INTERVAL_MS = 140;
 const MAX_ANNOUNCEMENTS = 80;
 const RAY_EPSILON = 1e-9;
 const AYA_STEALTH_TURNS = 2;
+const KOISHI_ROLE4_COST = 5;
 
 const INITIAL_WALL_COORDS: Coord[] = [];
 for (let y = 3; y <= 8; y += 1) {
@@ -75,18 +76,36 @@ export function getBaseTerrain(coord: Coord): TerrainType {
   return "ground";
 }
 
+function getBaseMaxSpiritByMech(mechId: MechId): number {
+  if (mechId === "aya") {
+    return 5;
+  }
+  if (mechId === "koishi") {
+    return 10;
+  }
+  return 25;
+}
+
+function getBaseHpByMech(mechId: MechId): number {
+  return mechId === "koishi" ? 5 : 10;
+}
+
+function getBaseAtkByMech(mechId: MechId): number {
+  return mechId === "koishi" ? 2 : 1;
+}
+
 function createUnit(side: Side, pos: Coord, initialSpirit: number, mechId: MechId): UnitState {
-  const maxSpirit = mechId === "aya" ? 5 : 25;
+  const maxSpirit = getBaseMaxSpiritByMech(mechId);
   return {
     id: getPlayerIdBySide(side),
     side,
     mechId,
     pos: { ...pos },
     stats: {
-      hp: 10,
+      hp: getBaseHpByMech(mechId),
       spirit: Math.max(0, Math.min(maxSpirit, initialSpirit)),
       maxSpirit,
-      atk: 1,
+      atk: getBaseAtkByMech(mechId),
       vision: 1,
       moveRange: 1,
       gold: 100,
@@ -105,6 +124,11 @@ function createUnit(side: Side, pos: Coord, initialSpirit: number, mechId: MechI
       ayaNextAttackBuff: false,
       ayaNextMoveBuff: false,
       ayaSigil: false,
+      koishiStealthTurns: 0,
+      koishiHeartAuraActive: false,
+      koishiPolygraphTurns: 0,
+      koishiPhilosophyActive: false,
+      koishiPhilosophyHits: 0,
     },
   };
 }
@@ -153,6 +177,14 @@ function isAya(state: GameState, side: Side): boolean {
 
 function isAyaUnit(unit: UnitState): boolean {
   return unit.mechId === "aya";
+}
+
+function isKoishi(state: GameState, side: Side): boolean {
+  return state.players[side].mechId === "koishi";
+}
+
+function isKoishiUnit(unit: UnitState): boolean {
+  return unit.mechId === "koishi";
 }
 
 function canIssuePrimaryAction(state: GameState, actor: Side): boolean {
@@ -230,6 +262,9 @@ function resolvePrimaryAnnouncement(
   salt: string,
   forceRandom = false,
 ): string {
+  if (isKoishi(state, actor)) {
+    return "";
+  }
   if (!shouldUseAyaRandomAnnouncement(state, actor, forceRandom)) {
     return text;
   }
@@ -397,6 +432,9 @@ function isAttackTargetAt(state: GameState, actor: Side, coord: Coord): boolean 
     return true;
   }
   const enemy = state.players[oppositeSide(actor)];
+  if (isKoishiUnit(enemy) && enemy.effects.koishiStealthTurns > 0) {
+    return false;
+  }
   return coordsEqual(enemy.pos, coord);
 }
 
@@ -599,6 +637,7 @@ function applyEnemyDamage(
   targetSide: Side,
   amount: number,
   damageAnnouncements: string[],
+  sourceSide?: Side,
 ): boolean {
   if (amount <= 0) {
     return false;
@@ -609,7 +648,11 @@ function applyEnemyDamage(
   }
   const hpAfter = Math.max(0, target.stats.hp - amount);
   target.stats.hp = hpAfter;
+  const targetIsKoishi = isKoishiUnit(target);
   damageAnnouncements.push(`机体受伤：${getSideLabel(targetSide)}受到了${amount}点伤害`);
+  if (targetIsKoishi) {
+    target.effects.koishiStealthTurns = 0;
+  }
   return true;
 }
 
@@ -694,6 +737,75 @@ function clearAyaSigilOnTarget(
   }
 }
 
+function collectRadiusOneNeighbors(center: Coord): Coord[] {
+  const result: Coord[] = [];
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const coord = {
+        x: center.x + dx,
+        y: center.y + dy,
+      };
+      if (!isCoordInBounds(coord)) {
+        continue;
+      }
+      result.push(coord);
+    }
+  }
+  return result;
+}
+
+function applyKoishiHeartAuraAtEnemyTurnStart(
+  players: Record<Side, UnitState>,
+  walls: Record<string, WallState>,
+  enteringSide: Side,
+  damageAnnouncements: string[],
+): void {
+  const koishiSide = oppositeSide(enteringSide);
+  const koishi = players[koishiSide];
+  if (!isKoishiUnit(koishi) || !koishi.effects.koishiHeartAuraActive) {
+    return;
+  }
+  if (koishi.stats.spirit < 1) {
+    koishi.effects.koishiHeartAuraActive = false;
+    return;
+  }
+  koishi.stats.spirit -= 1;
+  const neighbors = collectRadiusOneNeighbors(koishi.pos);
+  const enemy = players[enteringSide];
+  for (const coord of neighbors) {
+    if (coordsEqual(enemy.pos, coord)) {
+      applyEnemyDamage(players, enteringSide, 1, damageAnnouncements, koishiSide);
+    }
+    applyWallDamage(players, walls, koishiSide, coord, 1);
+  }
+}
+
+function applyKoishiPolygraphAfterMove(
+  state: GameState,
+  actor: Side,
+  movedOrthogonally: boolean,
+  nextPlayers: Record<Side, UnitState>,
+  damageAnnouncements: string[],
+): void {
+  if (!movedOrthogonally) {
+    return;
+  }
+  if (state.turn.side !== actor) {
+    return;
+  }
+  const koishiSide = oppositeSide(actor);
+  if (!isKoishi(state, koishiSide)) {
+    return;
+  }
+  if (state.players[koishiSide].effects.koishiPolygraphTurns <= 0) {
+    return;
+  }
+  applyEnemyDamage(nextPlayers, actor, 1, damageAnnouncements, koishiSide);
+}
+
 function tryQueueAyaPassiveAttack(state: GameState, actor: Side, allowPassiveTrigger: boolean): GameState["turn"] {
   if (!allowPassiveTrigger || !isAya(state, actor)) {
     return markTurnActionEnded(state.turn);
@@ -762,12 +874,13 @@ function appendTurnAnnouncements(
   side: Side,
   additions: string[],
 ): string[] {
-  if (additions.length === 0) {
+  const valid = additions.filter((item) => item.trim().length > 0);
+  if (valid.length === 0) {
     return appendAnnouncements(base, []);
   }
   return appendAnnouncements(
     base,
-    additions.map((text) => formatTurnAnnouncement(round, side, text)),
+    valid.map((text) => formatTurnAnnouncement(round, side, text)),
   );
 }
 
@@ -909,6 +1022,40 @@ export function getLegalBlinkTargets(state: GameState, actor: Side, spiritSpend:
   return result;
 }
 
+export function getLegalKoishiRole1Targets(state: GameState, actor: Side): Coord[] {
+  if (!canIssuePrimaryAction(state, actor)) {
+    return [];
+  }
+  if (!isKoishi(state, actor)) {
+    return [];
+  }
+  if (!state.players[actor].skills.role1) {
+    return [];
+  }
+  if (!canUseRoleSkillByMech(state, actor, "role1")) {
+    return [];
+  }
+  if (state.players[actor].stats.spirit < 1) {
+    return [];
+  }
+  const self = state.players[actor];
+  const result: Coord[] = [];
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const target: Coord = { x, y };
+      const distance = chebyshevDistance(self.pos, target);
+      if (distance <= 0 || distance > 1) {
+        continue;
+      }
+      if (hasAnyUnitAt(state, target)) {
+        continue;
+      }
+      result.push(target);
+    }
+  }
+  return result;
+}
+
 export function getQuickCastTargets(state: GameState, actor: Side): QuickCastTargets {
   const moveTargets = getLegalMoveTargets(state, actor);
   const attackTargets = getLegalAttackTargets(state, actor).filter(
@@ -945,13 +1092,16 @@ function applyMove(state: GameState, command: Command): ApplyOutcome {
   }
 
   const self = state.players[actor];
-  const nextSpirit = isOrthogonalStep(self.pos, target)
+  const movedOrthogonally = isOrthogonalStep(self.pos, target);
+  const nextSpirit = movedOrthogonally
     ? Math.min(self.stats.maxSpirit, self.stats.spirit + 1)
     : self.stats.spirit;
 
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].pos = { ...target };
   nextPlayers[actor].stats.spirit = nextSpirit;
+  const damageAnnouncements: string[] = [];
+  applyKoishiPolygraphAfterMove(state, actor, movedOrthogonally, nextPlayers, damageAnnouncements);
   if (isAyaUnit(nextPlayers[actor])) {
     nextPlayers[actor].effects.ayaNextMoveBuff = false;
     activateAyaStealthIfReady(nextPlayers[actor]);
@@ -965,21 +1115,30 @@ function applyMove(state: GameState, command: Command): ApplyOutcome {
       acted: false,
     }),
   };
-  const nextTurn = tryQueueAyaPassiveAttack(actionStateForQueue, actor, allowPassiveTrigger);
+  const nextTurn =
+    nextPlayers[actor].stats.hp <= 0
+      ? markTurnActionEnded(state.turn)
+      : tryQueueAyaPassiveAttack(actionStateForQueue, actor, allowPassiveTrigger);
   const primaryAnnouncement = resolvePrimaryAnnouncement(
     state,
     actor,
     `${getSideLabel(actor)}进行了移动`,
     "move",
   );
+  const winner = getWinnerFromPlayers({
+    ...state,
+    players: nextPlayers,
+  });
 
   const nextState: GameState = {
     ...state,
     players: nextPlayers,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
       primaryAnnouncement,
+      ...damageAnnouncements,
     ]),
     turn: nextTurn,
+    winner,
   };
   return { ok: true, state: nextState };
 }
@@ -1046,7 +1205,7 @@ function applyScout(state: GameState, command: Command): ApplyOutcome {
   }
 
   const enemy = state.players[oppositeSide(actor)];
-  const scoutResult = isGrass(enemy.pos)
+  const scoutResult = isKoishiUnit(enemy) || isGrass(enemy.pos)
     ? "/无法被侦察"
     : `${getSideLabel(oppositeSide(actor))}的坐标为${formatCoordDisplay(enemy.pos)}。`;
 
@@ -1097,13 +1256,29 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
   const nextPlayers = clonePlayers(state.players);
   const nextWalls = cloneWalls(state.walls);
   const damageAnnouncements: string[] = [];
+  const attackerIsKoishi = isKoishi(state, actor);
+  const canTriggerKoishiPhilosophy =
+    attackerIsKoishi &&
+    nextPlayers[actor].effects.koishiPhilosophyActive &&
+    coordsEqual(nextPlayers[enemySide].pos, target);
+  const koishiExtraDamage = canTriggerKoishiPhilosophy
+    ? Math.max(0, getBaseHpByMech(nextPlayers[enemySide].mechId) - nextPlayers[enemySide].stats.hp)
+    : 0;
+  if (attackerIsKoishi) {
+    nextPlayers[actor].effects.koishiStealthTurns = 0;
+  }
   const hitAyaSigil = isAya(state, actor) && hasAyaSigilOnTarget(state.players, state.walls, actor, target);
   if (hitAyaSigil) {
     clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, target);
   }
 
   if (coordsEqual(nextPlayers[enemySide].pos, target)) {
-    applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements);
+    applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements, actor);
+  }
+  if (canTriggerKoishiPhilosophy) {
+    nextPlayers[actor].effects.koishiPhilosophyActive = false;
+    nextPlayers[actor].effects.koishiPhilosophyHits = 0;
+    applyEnemyDamage(nextPlayers, enemySide, koishiExtraDamage, damageAnnouncements, actor);
   }
   applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
   if (isAyaUnit(nextPlayers[actor])) {
@@ -1134,6 +1309,7 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
       resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}进行了普通攻击`, "attack"),
+      ...(canTriggerKoishiPhilosophy ? ["今、貴方の後ろに居るの"] : []),
       ...damageAnnouncements,
     ]),
     turn: nextTurn,
@@ -1199,6 +1375,32 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
   }
+
+  if (isKoishi(state, actor)) {
+    if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
+      return { ok: false, reason: "invalid spirit spend" };
+    }
+    if (self.stats.spirit < command.spirit) {
+      return { ok: false, reason: "not enough spirit" };
+    }
+    const legal = containsCoord(getLegalKoishiRole1Targets(state, actor), target);
+    if (!legal) {
+      return { ok: false, reason: "illegal koishi role1 target" };
+    }
+    const nextPlayers = clonePlayers(state.players);
+    nextPlayers[actor].stats.spirit -= command.spirit;
+    nextPlayers[actor].pos = { ...target };
+    nextPlayers[actor].effects.koishiStealthTurns = command.spirit;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        turn: markTurnActionEnded(state.turn),
+      },
+    };
+  }
+
   const ray = buildRayPath(self.pos, target);
   if (!ray || ray.cells.length === 0) {
     return { ok: false, reason: "invalid needle direction" };
@@ -1270,7 +1472,7 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
             }
           }
         } else {
-          const damaged = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements);
+          const damaged = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements, actor);
           if (damaged && nextPlayers[enemySide].stats.hp > 0) {
             nextPlayers[enemySide].effects.ayaSigil = true;
           }
@@ -1366,7 +1568,7 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
       }
       for (const hit of group) {
         if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
-          groupHit = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || groupHit;
+          groupHit = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements, actor) || groupHit;
         }
       }
 
@@ -1429,11 +1631,15 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
     return { ok: false, reason: "invalid amulet command type" };
   }
   const actor = command.actor;
-  if (!canIssuePrimaryAction(state, actor)) {
+  const self = state.players[actor];
+  const koishiRole2Toggle = isKoishi(state, actor);
+  if (koishiRole2Toggle) {
+    if (!canIssueCommandByTurn(state, actor)) {
+      return { ok: false, reason: "cannot act now" };
+    }
+  } else if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
-
-  const self = state.players[actor];
   if (!canUseRoleSkillByMech(state, actor, "role2")) {
     return { ok: false, reason: "role2 not implemented for current mech" };
   }
@@ -1443,13 +1649,28 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
   if (!Number.isInteger(command.spirit) || command.spirit !== 1) {
     return { ok: false, reason: "amulet spirit must be 1" };
   }
-  if (self.stats.spirit < 1) {
+  if (!koishiRole2Toggle && self.stats.spirit < 1) {
     return { ok: false, reason: "not enough spirit" };
   }
 
   const target = keyToCoord(command.to);
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
+  }
+
+  if (koishiRole2Toggle) {
+    if (!coordsEqual(target, self.pos)) {
+      return { ok: false, reason: "koishi role2 must target self tile" };
+    }
+    const nextPlayers = clonePlayers(state.players);
+    nextPlayers[actor].effects.koishiHeartAuraActive = !nextPlayers[actor].effects.koishiHeartAuraActive;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+      },
+    };
   }
 
   if (isAya(state, actor)) {
@@ -1509,7 +1730,7 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
       clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, target);
     }
     if (coordsEqual(nextPlayers[enemySide].pos, target)) {
-      applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements);
+      applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements, actor);
     }
     applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
     nextPlayers[actor].effects.ayaNextAttackBuff = false;
@@ -1565,7 +1786,7 @@ function applyAmulet(state: GameState, command: Command): ApplyOutcome {
       applyWallDamage(nextPlayers, nextWalls, actor, hit.coord, 1);
     }
     if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
-      hitEnemy = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || hitEnemy;
+      hitEnemy = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements, actor) || hitEnemy;
     }
   }
 
@@ -1654,6 +1875,19 @@ function applyOrb(state: GameState, command: Command): ApplyOutcome {
     };
   }
 
+  if (isKoishi(state, actor)) {
+    nextPlayers[actor].stats.spirit -= command.spirit;
+    nextPlayers[actor].effects.koishiPolygraphTurns = command.spirit;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        turn: markTurnActionEnded(state.turn),
+      },
+    };
+  }
+
   nextPlayers[actor].stats.spirit -= command.spirit;
   nextPlayers[actor].effects.orbVisionRadius = command.spirit;
   nextPlayers[actor].effects.orbTurns = command.spirit;
@@ -1698,6 +1932,29 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
   }
+  if (isKoishi(state, actor)) {
+    if (command.spirit !== KOISHI_ROLE4_COST) {
+      return { ok: false, reason: "koishi role4 spirit must be 5" };
+    }
+    if (!coordsEqual(target, self.pos)) {
+      return { ok: false, reason: "koishi role4 must target self tile" };
+    }
+    if (self.effects.koishiPhilosophyActive) {
+      return { ok: false, reason: "koishi role4 already active" };
+    }
+    const nextPlayers = clonePlayers(state.players);
+    nextPlayers[actor].stats.spirit -= KOISHI_ROLE4_COST;
+    nextPlayers[actor].effects.koishiPhilosophyActive = true;
+    nextPlayers[actor].effects.koishiPhilosophyHits = 0;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        turn: markTurnActionEnded(state.turn),
+      },
+    };
+  }
   const legal = containsCoord(getLegalBlinkTargets(state, actor, command.spirit), target);
   if (!legal) {
     return { ok: false, reason: "illegal blink target" };
@@ -1721,7 +1978,7 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
           nextWalls[coordToKey(hit.coord)].ayaSigil = false;
         }
         if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
-          hitEnemy = applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements) || hitEnemy;
+          hitEnemy = applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements, actor) || hitEnemy;
         }
       }
     }
@@ -1785,16 +2042,36 @@ function decrementTimedEffectsWhenTurnStarts(players: Record<Side, UnitState>, e
   if (effect.ayaStealthTurns > 0) {
     effect.ayaStealthTurns = Math.max(0, effect.ayaStealthTurns - 1);
   }
+  if (effect.koishiStealthTurns > 0) {
+    effect.koishiStealthTurns = Math.max(0, effect.koishiStealthTurns - 1);
+    if (effect.koishiStealthTurns === 0 && isGrass(players[enteringSide].pos)) {
+      effect.koishiStealthTurns = 1;
+    }
+  }
+  if (effect.koishiPolygraphTurns > 0) {
+    effect.koishiPolygraphTurns = Math.max(0, effect.koishiPolygraphTurns - 1);
+  }
 }
 
 function advanceTurnState(state: GameState, actor: Side): GameState {
   const nextSide = oppositeSide(actor);
   const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
   const nextPlayers = clonePlayers(state.players);
+  const nextWalls = cloneWalls(state.walls);
   decrementTimedEffectsWhenTurnStarts(nextPlayers, nextSide);
+  const turnStartDamageAnnouncements: string[] = [];
+  applyKoishiHeartAuraAtEnemyTurnStart(nextPlayers, nextWalls, nextSide, turnStartDamageAnnouncements);
+  const winner = getWinnerFromPlayers({
+    ...state,
+    players: nextPlayers,
+    walls: nextWalls,
+  });
   return {
     ...state,
     players: nextPlayers,
+    walls: nextWalls,
+    announcements: appendTurnAnnouncements(state.announcements, nextRound, nextSide, turnStartDamageAnnouncements),
+    winner,
     turn: {
       side: nextSide,
       round: nextRound,
@@ -1957,7 +2234,9 @@ export function buildPerspective(state: GameState, side: Side): PerspectiveState
   const enemySide = oppositeSide(side);
   const enemyUnit = state.players[enemySide];
   const enemyPos = enemyUnit.pos;
-  const enemyStealthed = enemyUnit.mechId === "aya" && enemyUnit.effects.ayaStealthTurns > 0;
+  const enemyStealthed =
+    (enemyUnit.mechId === "aya" && enemyUnit.effects.ayaStealthTurns > 0) ||
+    (enemyUnit.mechId === "koishi" && enemyUnit.effects.koishiStealthTurns > 0);
   const enemyVisible = !enemyStealthed && isVisibleFrom(state, side, enemyPos);
 
   return {

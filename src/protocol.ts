@@ -49,6 +49,11 @@ export interface UnitEffects {
   ayaNextAttackBuff: boolean;
   ayaNextMoveBuff: boolean;
   ayaSigil: boolean;
+  koishiStealthTurns: number;
+  koishiHeartAuraActive: boolean;
+  koishiPolygraphTurns: number;
+  koishiPhilosophyActive: boolean;
+  koishiPhilosophyHits: number;
 }
 
 export interface UnitState {

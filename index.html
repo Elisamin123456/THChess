@@ -165,12 +165,13 @@
         min-width: 0;
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-start;
         gap: 16px;
       }
 
-      .skill-left {
+      .battle-skill-section {
         min-width: 0;
+        flex: 1;
         display: flex;
         align-items: center;
         justify-content: flex-start;
@@ -183,19 +184,41 @@
         grid-template-rows: repeat(2, minmax(0, 1fr));
         gap: 6px;
         width: clamp(112px, 19vw, 156px);
+        flex: 0 0 clamp(112px, 19vw, 156px);
       }
 
       .role-skill-grid {
         display: grid;
-        grid-auto-flow: column;
-        grid-auto-columns: clamp(40px, 5.5vw, 56px);
+        grid-template-columns: repeat(4, clamp(40px, 5.5vw, 56px));
+        gap: 8px;
+        justify-content: center;
+      }
+
+      .role-action-column {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        align-items: center;
+        justify-content: center;
         gap: 8px;
       }
 
       .skill-actions {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: center;
+        width: 100%;
+      }
+
+      .mark-skill-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        width: clamp(112px, 19vw, 156px);
+        flex: 0 0 clamp(112px, 19vw, 156px);
+        margin-left: auto;
       }
 
       .bp-skill-section {
@@ -214,6 +237,11 @@
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 6px;
+      }
+
+      .bp-skill-actions {
+        display: flex;
+        justify-content: flex-end;
       }
 
       .bp-skill-item {
@@ -246,6 +274,27 @@
         cursor: pointer;
         overflow: hidden;
         transition: background-color 120ms linear, color 120ms linear, opacity 120ms linear;
+      }
+
+      .mark-btn {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border: none;
+        padding: 0;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .mark-btn-icon {
+        width: 72%;
+        height: 72%;
+        object-fit: contain;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        pointer-events: none;
       }
 
       .hollow-frame {
@@ -379,6 +428,14 @@
       .hollow-frame.skill-quickcast:hover:not(:disabled) {
         background-color: #2b67ff;
         color: #fff;
+      }
+
+      .mark-selected {
+        background-color: #2b67ff;
+      }
+
+      .hollow-frame.mark-selected:hover:not(:disabled) {
+        background-color: #2b67ff;
       }
 
       .spirit-popup {
@@ -557,21 +614,32 @@
           gap: 10px;
         }
 
-        .skill-left {
-          justify-content: space-between;
+        .battle-skill-section {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
         }
 
         .basic-skill-grid {
-          width: clamp(112px, 34vw, 152px);
+          width: clamp(112px, 40vw, 180px);
         }
 
         .role-skill-grid {
-          grid-auto-columns: clamp(38px, 10vw, 52px);
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 6px;
         }
 
+        .role-action-column {
+          width: 100%;
+          align-items: center;
+        }
+
         .skill-actions {
-          justify-content: flex-start;
+          justify-content: center;
+        }
+
+        .mark-skill-grid {
+          width: clamp(112px, 40vw, 180px);
         }
 
         .debug-panel {

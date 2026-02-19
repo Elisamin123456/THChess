@@ -65,11 +65,21 @@ echo [THchess] waiting for server startup...
 timeout /t 3 /nobreak >nul
 
 set URL=http://127.0.0.1:5173/%QUERY%
-echo [THchess] opening two pages:
-echo   %URL%
+set URL_A=%URL%
+set URL_B=%URL%
 
-start "" "%URL%"
-start "" "%URL%"
+if "%MODE_CHOICE%"=="2" (
+  set PAIR_TOKEN=%RANDOM%%RANDOM%
+  set URL_A=http://127.0.0.1:5173/?debug^&autopair=1^&pair=!PAIR_TOKEN!^&side=blue
+  set URL_B=http://127.0.0.1:5173/?debug^&autopair=1^&pair=!PAIR_TOKEN!^&side=red
+)
+
+echo [THchess] opening two pages:
+echo   %URL_A%
+echo   %URL_B%
+
+start "" "%URL_A%"
+start "" "%URL_B%"
 
 echo [THchess] done. Keep the "THchess Dev Server" window open while debugging.
 exit /b 0

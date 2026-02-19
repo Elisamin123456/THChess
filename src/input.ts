@@ -14,6 +14,7 @@ import {
   getLegalAttackTargets,
   getLegalBlinkTargets,
   getLegalBuildTargets,
+  getLegalKoishiRole1Targets,
   getLegalMoveTargets,
   getQuickCastTargets,
 } from "./game";
@@ -67,8 +68,21 @@ function isAya(ctx: InputContext): boolean {
   return localUnit(ctx).mechId === "aya";
 }
 
+function isKoishi(ctx: InputContext): boolean {
+  return localUnit(ctx).mechId === "koishi";
+}
+
 function getSpiritSpendBounds(skill: SkillId | null, ctx: InputContext): { min: number; max: number } {
-  if (skill === "build" || skill === "role4") {
+  if (skill === "build") {
+    const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
+    return { min: max > 0 ? 1 : 0, max };
+  }
+
+  if (skill === "role4") {
+    if (isKoishi(ctx)) {
+      const canUse = localUnit(ctx).stats.spirit >= 5;
+      return { min: canUse ? 5 : 0, max: canUse ? 5 : 0 };
+    }
     const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
     return { min: max > 0 ? 1 : 0, max };
   }
@@ -127,8 +141,11 @@ function isVariableSpiritSkill(skill: SkillId | null, ctx: InputContext): boolea
   if (!skill) {
     return false;
   }
-  if (skill === "build" || skill === "role4") {
+  if (skill === "build") {
     return true;
+  }
+  if (skill === "role4") {
+    return !isKoishi(ctx);
   }
   if (skill === "role1" || skill === "role3") {
     return !isAya(ctx);
@@ -147,6 +164,7 @@ export function createInitialInputState(): InputState {
 export function getSkillAvailability(ctx: InputContext): SkillAvailability {
   const self = localUnit(ctx);
   const aya = self.mechId === "aya";
+  const koishi = self.mechId === "koishi";
   const noAction: SkillAvailability = {
     move: false,
     build: false,
@@ -176,12 +194,19 @@ export function getSkillAvailability(ctx: InputContext): SkillAvailability {
       self.skills.role1 &&
       self.stats.spirit >= (aya ? 2 : 1),
     role2:
-      canUseRoleSkillByState(ctx.game, ctx.localSide, "role2") &&
+      (koishi
+        ? !ctx.game.winner && ctx.game.turn.side === ctx.localSide
+        : canUseRoleSkillByState(ctx.game, ctx.localSide, "role2")) &&
       self.skills.role2 &&
-      self.stats.spirit >= 1 &&
+      (koishi || self.stats.spirit >= 1) &&
       (!aya || ayaRole2CanUse),
     role3: canUseRoleSkillByState(ctx.game, ctx.localSide, "role3") && self.skills.role3 && self.stats.spirit >= 1,
-    role4: canUseRoleSkillByState(ctx.game, ctx.localSide, "role4") && self.skills.role4 && hasAnyBlinkTarget(ctx),
+    role4:
+      canUseRoleSkillByState(ctx.game, ctx.localSide, "role4") &&
+      self.skills.role4 &&
+      (koishi
+        ? self.stats.spirit >= 5 && !self.effects.koishiPhilosophyActive
+        : hasAnyBlinkTarget(ctx)),
   };
 }
 
@@ -210,6 +235,26 @@ export function onSkillClick(state: InputState, skill: SkillId, ctx: InputContex
   }
   if (isRoleSkillId(skill) && !canUseRoleSkillByState(ctx.game, ctx.localSide, skill)) {
     return { next: { ...nextState, activeSkill: null } };
+  }
+
+  if (skill === "role2" && isKoishi(ctx)) {
+    return {
+      next: {
+        ...nextState,
+        activeSkill: null,
+      },
+      command: createAmuletCommand(ctx.localSide, localUnit(ctx).pos),
+    };
+  }
+
+  if (skill === "role4" && isKoishi(ctx)) {
+    return {
+      next: {
+        ...nextState,
+        activeSkill: null,
+      },
+      command: createBlinkCommand(ctx.localSide, localUnit(ctx).pos, 5),
+    };
   }
 
   const bounds = getSpiritSpendBounds(skill, ctx);
@@ -351,6 +396,12 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
     if (coordsEqual(selfPos, coord)) {
       return { next: { ...state } };
     }
+    if (localUnit(ctx).mechId === "koishi") {
+      const legal = getLegalKoishiRole1Targets(ctx.game, ctx.localSide);
+      if (!containsCoord(legal, coord)) {
+        return { next: { ...state } };
+      }
+    }
     const spirit = localUnit(ctx).mechId === "aya" ? 2 : state.spiritSpend;
     return {
       next: {
@@ -362,6 +413,14 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
   }
 
   if (state.activeSkill === "role2") {
+    if (localUnit(ctx).mechId === "koishi") {
+      return {
+        next: {
+          ...state,
+          activeSkill: null,
+        },
+      };
+    }
     if (localUnit(ctx).mechId === "aya") {
       const legalMove = getLegalMoveTargets(ctx.game, ctx.localSide);
       const legalAttack = getLegalAttackTargets(ctx.game, ctx.localSide);
@@ -390,6 +449,12 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
   }
 
   if (state.activeSkill === "role3") {
+    if (localUnit(ctx).mechId === "aya") {
+      const selfPos = localUnit(ctx).pos;
+      if (!coordsEqual(selfPos, coord)) {
+        return { next: { ...state } };
+      }
+    }
     const spirit = localUnit(ctx).mechId === "aya" ? 1 : state.spiritSpend;
     return {
       next: {
@@ -401,6 +466,14 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
   }
 
   if (state.activeSkill === "role4") {
+    if (localUnit(ctx).mechId === "koishi") {
+      return {
+        next: {
+          ...state,
+          activeSkill: null,
+        },
+      };
+    }
     const legal = getLegalBlinkTargets(ctx.game, ctx.localSide, state.spiritSpend);
     if (!containsCoord(legal, coord)) {
       return { next: { ...state } };
@@ -478,8 +551,20 @@ export function getHighlights(state: InputState, ctx: InputContext): HighlightSe
     };
   }
   if (state.activeSkill === "role4") {
+    if (localUnit(ctx).mechId === "koishi") {
+      return {
+        moveHighlights: [],
+        attackHighlights: [],
+      };
+    }
     return {
       moveHighlights: getLegalBlinkTargets(ctx.game, ctx.localSide, state.spiritSpend),
+      attackHighlights: [],
+    };
+  }
+  if (state.activeSkill === "role1" && localUnit(ctx).mechId === "koishi") {
+    return {
+      moveHighlights: getLegalKoishiRole1Targets(ctx.game, ctx.localSide),
       attackHighlights: [],
     };
   }
@@ -487,6 +572,12 @@ export function getHighlights(state: InputState, ctx: InputContext): HighlightSe
     return {
       moveHighlights: getLegalMoveTargets(ctx.game, ctx.localSide),
       attackHighlights: getLegalAttackTargets(ctx.game, ctx.localSide),
+    };
+  }
+  if (state.activeSkill === "role3" && localUnit(ctx).mechId === "aya") {
+    return {
+      moveHighlights: [{ ...localUnit(ctx).pos }],
+      attackHighlights: [],
     };
   }
   return {

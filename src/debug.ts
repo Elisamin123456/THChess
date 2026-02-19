@@ -22,6 +22,7 @@ export interface DebugPanel {
   onStartLoopback(handler: () => void): void;
   onSideChange(handler: (side: Side) => void): void;
   getSelectedSide(): Side;
+  setSelectedSide(side: Side): void;
   setTransportStatus(status: TransportStatus): void;
   setInviteHash(value: string): void;
   log(message: string): void;
@@ -222,6 +223,9 @@ export function createDebugPanel(root: HTMLElement, options: DebugPanelOptions):
     },
     getSelectedSide(): Side {
       return sideSelect.value === "red" ? "red" : "blue";
+    },
+    setSelectedSide(side: Side): void {
+      sideSelect.value = side === "red" ? "red" : "blue";
     },
     setTransportStatus(status: TransportStatus): void {
       statusLine.textContent = `\u72b6\u6001: ${status.type} | ${status.detail}`;

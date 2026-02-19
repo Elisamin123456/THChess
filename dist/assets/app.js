@@ -754,7 +754,32 @@ var MECH_DEFINITIONS = {
     id: "koishi",
     name: "Koishi",
     avatarSrc: "./assets/char/koishi.png",
-    roleSkills: buildEmptyRoleSkills()
+    roleSkills: {
+      role1: makeSkill(
+        "role1",
+        "\u5F3E\u5E55\uFF1A\u300C\u7121\u610F\u8B58\u306E\u907A\u4F1D\u5B50\u300D",
+        "\u6D88\u8D39N\u7075\u529B,\u57281\u683C\u8303\u56F4\u5185\u95EA\u73B0\uFF0C\u5E76\u4F7F\u4F60\u5B8C\u5168\u9690\u5F62N\u56DE\u5408\u3002 \u9690\u5F62\u671F\u95F4\u9690\u8EAB\u65F6\u5728\u5BF9\u65B9\u89C6\u91CE\u8303\u56F4\u5185\u4EC5\u65E0\u6CD5\u770B\u89C1\u4F60\u7684\u4F4D\u7F6E\u3002\u604B\u9690\u8EAB\u540E\uFF0C\u65E0\u6CD5\u88AB\u666E\u901A\u653B\u51FB\u9009\u5B9A\u3002 \u4F60\u5728\u8FDB\u5165\u8349\u4E1B\u65F6\u5373\u4F7F\u6548\u679C\u7ED3\u675F\u4E5F\u4E0D\u4F1A\u89E3\u9664\u9690\u5F62\uFF0C\u604B\u88AB\u653B\u51FB\u6216\u604B\u8FDB\u884C\u666E\u901A\u653B\u51FB\u540E\u4F1A\u7ACB\u523B\u89E3\u9664\u9690\u5F62\u3002",
+        true
+      ),
+      role2: makeSkill(
+        "role2",
+        "\u970A\u6483\uFF1A\u300C\u30A4\u30C9\u306E\u89E3\u653E\u300D",
+        "\u8BE5\u6280\u80FD\u5F00\u542F\u6216\u5173\u95ED\u4E0D\u88AB\u89C6\u4E3A\u884C\u52A8\u3002\u5F00\u5173\u6280\u80FD\uFF0C\u5F00\u542F\u540E\u6BCF\u56DE\u5408\u6D88\u8D391\u7075\u529B\uFF0C\u5173\u95ED\u540E\u4E0D\u6D88\u8017\u7075\u529B\uFF0C\u7075\u529B\u6263\u9664\u5728\u654C\u65B9\u56DE\u5408\u5F00\u59CB\u65F6\u8FDB\u884C\u7ED3\u7B97\uFF0C\u82E5\u7075\u529B\u4E0D\u8DB3\u5219\u81EA\u52A8\u5173\u95ED\u3002 \u654C\u65B9\u56DE\u5408\u5F00\u59CB\u5BF9\u604B\u5468\u56F4\u534A\u5F841\u683C\u7684\u5355\u4F4D\u9020\u62101\u70B9\u6301\u7EED\u4F24\u5BB3\u3002\u8BE5\u4F24\u5BB3\u65E0\u6CD5\u4F7F\u604B\u89E3\u9664\u9690\u5F62\u3002",
+        true
+      ),
+      role3: makeSkill(
+        "role3",
+        "\u8996\u754C:\u300C\u5996\u602A\u30DD\u30EA\u30B0\u30E9\u30D5\u300D",
+        "\u6D88\u8D39N\u7075\u529B\u3002\u4F7F\u5F97\u5F53\u654C\u65B9\u673A\u4F53\u5728\u654C\u65B9\u56DE\u5408\u53EA\u8981\u6267\u884C\u6B63\u4EA4\u79FB\u52A8\u540E, \u5BF9\u8BE5\u673A\u4F53\u7ACB\u523B\u9020\u62101\u70B9\u6301\u7EED\u4F24\u5BB3\u3002 \u659C\u5411\u79FB\u52A8\u6216\u6CA1\u6709\u8FDB\u884C\u79FB\u52A8\u4E0D\u4F1A\u9020\u6210\u4F24\u5BB3\uFF0C\u6301\u7EEDN\u56DE\u5408\u3002",
+        true
+      ),
+      role4: makeSkill(
+        "role4",
+        "\u5965\u7FA9:\u300C\u5ACC\u308F\u308C\u8005\u306E\u30D5\u30A3\u30ED\u30BD\u30D5\u30A3\u300D",
+        "\u6D88\u8D395\u7075\u529B\u3002\u5F3A\u5316\u604B\u7684\u4E0B\u4E00\u6B21\u666E\u901A\u653B\u51FB\u989D\u5916\u5BF9\u654C\u65B9\u673A\u4F53\u9020\u6210100%\u5DF2\u635F\u5931\u654C\u65B9\u751F\u547D\u503C\u7684\u989D\u5916\u4F24\u5BB3\u3002\u8BE5\u6280\u80FD\u4F7F\u7528\u540E\u5728\u4F7F\u7528\u5F3A\u5316\u666E\u901A\u653B\u51FB\u524D\u88AB\u89C6\u4E3A\u4E00\u76F4\u751F\u6548\u3002",
+        true
+      )
+    }
   },
   aya: {
     id: "aya",
@@ -826,6 +851,7 @@ var NEEDLE_INTERVAL_MS = 140;
 var MAX_ANNOUNCEMENTS = 80;
 var RAY_EPSILON = 1e-9;
 var AYA_STEALTH_TURNS = 2;
+var KOISHI_ROLE4_COST = 5;
 var INITIAL_WALL_COORDS = [];
 for (let y = 3; y <= 8; y += 1) {
   INITIAL_WALL_COORDS.push({ x: 3, y });
@@ -852,18 +878,33 @@ function getBaseTerrain(coord) {
   }
   return "ground";
 }
+function getBaseMaxSpiritByMech(mechId) {
+  if (mechId === "aya") {
+    return 5;
+  }
+  if (mechId === "koishi") {
+    return 10;
+  }
+  return 25;
+}
+function getBaseHpByMech(mechId) {
+  return mechId === "koishi" ? 5 : 10;
+}
+function getBaseAtkByMech(mechId) {
+  return mechId === "koishi" ? 2 : 1;
+}
 function createUnit(side, pos, initialSpirit, mechId) {
-  const maxSpirit = mechId === "aya" ? 5 : 25;
+  const maxSpirit = getBaseMaxSpiritByMech(mechId);
   return {
     id: getPlayerIdBySide(side),
     side,
     mechId,
     pos: { ...pos },
     stats: {
-      hp: 10,
+      hp: getBaseHpByMech(mechId),
       spirit: Math.max(0, Math.min(maxSpirit, initialSpirit)),
       maxSpirit,
-      atk: 1,
+      atk: getBaseAtkByMech(mechId),
       vision: 1,
       moveRange: 1,
       gold: 100
@@ -881,7 +922,12 @@ function createUnit(side, pos, initialSpirit, mechId) {
       ayaStealthTurns: 0,
       ayaNextAttackBuff: false,
       ayaNextMoveBuff: false,
-      ayaSigil: false
+      ayaSigil: false,
+      koishiStealthTurns: 0,
+      koishiHeartAuraActive: false,
+      koishiPolygraphTurns: 0,
+      koishiPhilosophyActive: false,
+      koishiPhilosophyHits: 0
     }
   };
 }
@@ -924,6 +970,12 @@ function isAya(state, side) {
 }
 function isAyaUnit(unit) {
   return unit.mechId === "aya";
+}
+function isKoishi(state, side) {
+  return state.players[side].mechId === "koishi";
+}
+function isKoishiUnit(unit) {
+  return unit.mechId === "koishi";
 }
 function canIssuePrimaryAction(state, actor) {
   return canIssueAction(state, actor) && state.turn.pendingAction === null;
@@ -983,6 +1035,9 @@ function shouldUseAyaRandomAnnouncement(state, actor, forceRandom) {
   return state.players[actor].effects.ayaStealthTurns > 0;
 }
 function resolvePrimaryAnnouncement(state, actor, text, salt, forceRandom = false) {
+  if (isKoishi(state, actor)) {
+    return "";
+  }
   if (!shouldUseAyaRandomAnnouncement(state, actor, forceRandom)) {
     return text;
   }
@@ -1124,6 +1179,9 @@ function isAttackTargetAt(state, actor, coord) {
     return true;
   }
   const enemy = state.players[oppositeSide(actor)];
+  if (isKoishiUnit(enemy) && enemy.effects.koishiStealthTurns > 0) {
+    return false;
+  }
   return coordsEqual(enemy.pos, coord);
 }
 function floorDamage(value) {
@@ -1279,7 +1337,7 @@ function getRayPoint(path, t) {
     y: path.startY + path.dirY * clampedT
   };
 }
-function applyEnemyDamage(players, targetSide, amount, damageAnnouncements) {
+function applyEnemyDamage(players, targetSide, amount, damageAnnouncements, sourceSide) {
   if (amount <= 0) {
     return false;
   }
@@ -1289,7 +1347,11 @@ function applyEnemyDamage(players, targetSide, amount, damageAnnouncements) {
   }
   const hpAfter = Math.max(0, target.stats.hp - amount);
   target.stats.hp = hpAfter;
+  const targetIsKoishi = isKoishiUnit(target);
   damageAnnouncements.push(`\u673A\u4F53\u53D7\u4F24\uFF1A${getSideLabel(targetSide)}\u53D7\u5230\u4E86${amount}\u70B9\u4F24\u5BB3`);
+  if (targetIsKoishi) {
+    target.effects.koishiStealthTurns = 0;
+  }
   return true;
 }
 function applyWallDamage(players, walls, actor, coord, amount) {
@@ -1346,6 +1408,61 @@ function clearAyaSigilOnTarget(players, walls, actor, target) {
     walls[key].ayaSigil = false;
   }
 }
+function collectRadiusOneNeighbors(center) {
+  const result = [];
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const coord = {
+        x: center.x + dx,
+        y: center.y + dy
+      };
+      if (!isCoordInBounds(coord)) {
+        continue;
+      }
+      result.push(coord);
+    }
+  }
+  return result;
+}
+function applyKoishiHeartAuraAtEnemyTurnStart(players, walls, enteringSide, damageAnnouncements) {
+  const koishiSide = oppositeSide(enteringSide);
+  const koishi = players[koishiSide];
+  if (!isKoishiUnit(koishi) || !koishi.effects.koishiHeartAuraActive) {
+    return;
+  }
+  if (koishi.stats.spirit < 1) {
+    koishi.effects.koishiHeartAuraActive = false;
+    return;
+  }
+  koishi.stats.spirit -= 1;
+  const neighbors = collectRadiusOneNeighbors(koishi.pos);
+  const enemy = players[enteringSide];
+  for (const coord of neighbors) {
+    if (coordsEqual(enemy.pos, coord)) {
+      applyEnemyDamage(players, enteringSide, 1, damageAnnouncements, koishiSide);
+    }
+    applyWallDamage(players, walls, koishiSide, coord, 1);
+  }
+}
+function applyKoishiPolygraphAfterMove(state, actor, movedOrthogonally, nextPlayers, damageAnnouncements) {
+  if (!movedOrthogonally) {
+    return;
+  }
+  if (state.turn.side !== actor) {
+    return;
+  }
+  const koishiSide = oppositeSide(actor);
+  if (!isKoishi(state, koishiSide)) {
+    return;
+  }
+  if (state.players[koishiSide].effects.koishiPolygraphTurns <= 0) {
+    return;
+  }
+  applyEnemyDamage(nextPlayers, actor, 1, damageAnnouncements, koishiSide);
+}
 function tryQueueAyaPassiveAttack(state, actor, allowPassiveTrigger) {
   if (!allowPassiveTrigger || !isAya(state, actor)) {
     return markTurnActionEnded(state.turn);
@@ -1399,12 +1516,13 @@ function formatTurnAnnouncement(round, side, text) {
   return `${getPlayerIdBySide(side).toUpperCase()}\u56DE\u5408${round}: ${text}`;
 }
 function appendTurnAnnouncements(base, round, side, additions) {
-  if (additions.length === 0) {
+  const valid = additions.filter((item) => item.trim().length > 0);
+  if (valid.length === 0) {
     return appendAnnouncements(base, []);
   }
   return appendAnnouncements(
     base,
-    additions.map((text) => formatTurnAnnouncement(round, side, text))
+    valid.map((text) => formatTurnAnnouncement(round, side, text))
   );
 }
 function formatCoordDisplay(coord) {
@@ -1533,6 +1651,39 @@ function getLegalBlinkTargets(state, actor, spiritSpend) {
   }
   return result;
 }
+function getLegalKoishiRole1Targets(state, actor) {
+  if (!canIssuePrimaryAction(state, actor)) {
+    return [];
+  }
+  if (!isKoishi(state, actor)) {
+    return [];
+  }
+  if (!state.players[actor].skills.role1) {
+    return [];
+  }
+  if (!canUseRoleSkillByMech(state, actor, "role1")) {
+    return [];
+  }
+  if (state.players[actor].stats.spirit < 1) {
+    return [];
+  }
+  const self = state.players[actor];
+  const result = [];
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const target = { x, y };
+      const distance = chebyshevDistance(self.pos, target);
+      if (distance <= 0 || distance > 1) {
+        continue;
+      }
+      if (hasAnyUnitAt(state, target)) {
+        continue;
+      }
+      result.push(target);
+    }
+  }
+  return result;
+}
 function getQuickCastTargets(state, actor) {
   const moveTargets = getLegalMoveTargets(state, actor);
   const attackTargets = getLegalAttackTargets(state, actor).filter(
@@ -1564,10 +1715,13 @@ function applyMove(state, command) {
     return { ok: false, reason: "illegal move target" };
   }
   const self = state.players[actor];
-  const nextSpirit = isOrthogonalStep(self.pos, target) ? Math.min(self.stats.maxSpirit, self.stats.spirit + 1) : self.stats.spirit;
+  const movedOrthogonally = isOrthogonalStep(self.pos, target);
+  const nextSpirit = movedOrthogonally ? Math.min(self.stats.maxSpirit, self.stats.spirit + 1) : self.stats.spirit;
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].pos = { ...target };
   nextPlayers[actor].stats.spirit = nextSpirit;
+  const damageAnnouncements = [];
+  applyKoishiPolygraphAfterMove(state, actor, movedOrthogonally, nextPlayers, damageAnnouncements);
   if (isAyaUnit(nextPlayers[actor])) {
     nextPlayers[actor].effects.ayaNextMoveBuff = false;
     activateAyaStealthIfReady(nextPlayers[actor]);
@@ -1580,20 +1734,26 @@ function applyMove(state, command) {
       acted: false
     })
   };
-  const nextTurn = tryQueueAyaPassiveAttack(actionStateForQueue, actor, allowPassiveTrigger);
+  const nextTurn = nextPlayers[actor].stats.hp <= 0 ? markTurnActionEnded(state.turn) : tryQueueAyaPassiveAttack(actionStateForQueue, actor, allowPassiveTrigger);
   const primaryAnnouncement = resolvePrimaryAnnouncement(
     state,
     actor,
     `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u79FB\u52A8`,
     "move"
   );
+  const winner = getWinnerFromPlayers({
+    ...state,
+    players: nextPlayers
+  });
   const nextState = {
     ...state,
     players: nextPlayers,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
-      primaryAnnouncement
+      primaryAnnouncement,
+      ...damageAnnouncements
     ]),
-    turn: nextTurn
+    turn: nextTurn,
+    winner
   };
   return { ok: true, state: nextState };
 }
@@ -1653,7 +1813,7 @@ function applyScout(state, command) {
     return { ok: false, reason: "not enough spirit" };
   }
   const enemy = state.players[oppositeSide(actor)];
-  const scoutResult = isGrass(enemy.pos) ? "/\u65E0\u6CD5\u88AB\u4FA6\u5BDF" : `${getSideLabel(oppositeSide(actor))}\u7684\u5750\u6807\u4E3A${formatCoordDisplay(enemy.pos)}\u3002`;
+  const scoutResult = isKoishiUnit(enemy) || isGrass(enemy.pos) ? "/\u65E0\u6CD5\u88AB\u4FA6\u5BDF" : `${getSideLabel(oppositeSide(actor))}\u7684\u5750\u6807\u4E3A${formatCoordDisplay(enemy.pos)}\u3002`;
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= 1;
   const nextState = {
@@ -1695,12 +1855,23 @@ function applyAttack(state, command) {
   const nextPlayers = clonePlayers(state.players);
   const nextWalls = cloneWalls(state.walls);
   const damageAnnouncements = [];
+  const attackerIsKoishi = isKoishi(state, actor);
+  const canTriggerKoishiPhilosophy = attackerIsKoishi && nextPlayers[actor].effects.koishiPhilosophyActive && coordsEqual(nextPlayers[enemySide].pos, target);
+  const koishiExtraDamage = canTriggerKoishiPhilosophy ? Math.max(0, getBaseHpByMech(nextPlayers[enemySide].mechId) - nextPlayers[enemySide].stats.hp) : 0;
+  if (attackerIsKoishi) {
+    nextPlayers[actor].effects.koishiStealthTurns = 0;
+  }
   const hitAyaSigil = isAya(state, actor) && hasAyaSigilOnTarget(state.players, state.walls, actor, target);
   if (hitAyaSigil) {
     clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, target);
   }
   if (coordsEqual(nextPlayers[enemySide].pos, target)) {
-    applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements);
+    applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements, actor);
+  }
+  if (canTriggerKoishiPhilosophy) {
+    nextPlayers[actor].effects.koishiPhilosophyActive = false;
+    nextPlayers[actor].effects.koishiPhilosophyHits = 0;
+    applyEnemyDamage(nextPlayers, enemySide, koishiExtraDamage, damageAnnouncements, actor);
   }
   applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
   if (isAyaUnit(nextPlayers[actor])) {
@@ -1728,6 +1899,7 @@ function applyAttack(state, command) {
     walls: nextWalls,
     announcements: appendTurnAnnouncements(state.announcements, state.turn.round, actor, [
       resolvePrimaryAnnouncement(state, actor, `${getSideLabel(actor)}\u8FDB\u884C\u4E86\u666E\u901A\u653B\u51FB`, "attack"),
+      ...canTriggerKoishiPhilosophy ? ["\u4ECA\u3001\u8CB4\u65B9\u306E\u5F8C\u308D\u306B\u5C45\u308B\u306E"] : [],
       ...damageAnnouncements
     ]),
     turn: nextTurn,
@@ -1785,6 +1957,30 @@ function applyNeedle(state, command) {
   const target = keyToCoord(command.to);
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
+  }
+  if (isKoishi(state, actor)) {
+    if (!Number.isInteger(command.spirit) || command.spirit <= 0) {
+      return { ok: false, reason: "invalid spirit spend" };
+    }
+    if (self.stats.spirit < command.spirit) {
+      return { ok: false, reason: "not enough spirit" };
+    }
+    const legal = containsCoord(getLegalKoishiRole1Targets(state, actor), target);
+    if (!legal) {
+      return { ok: false, reason: "illegal koishi role1 target" };
+    }
+    const nextPlayers2 = clonePlayers(state.players);
+    nextPlayers2[actor].stats.spirit -= command.spirit;
+    nextPlayers2[actor].pos = { ...target };
+    nextPlayers2[actor].effects.koishiStealthTurns = command.spirit;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers2,
+        turn: markTurnActionEnded(state.turn)
+      }
+    };
   }
   const ray = buildRayPath(self.pos, target);
   if (!ray || ray.cells.length === 0) {
@@ -1847,7 +2043,7 @@ function applyNeedle(state, command) {
             }
           }
         } else {
-          const damaged = applyEnemyDamage(nextPlayers2, enemySide2, 1, damageAnnouncements2);
+          const damaged = applyEnemyDamage(nextPlayers2, enemySide2, 1, damageAnnouncements2, actor);
           if (damaged && nextPlayers2[enemySide2].stats.hp > 0) {
             nextPlayers2[enemySide2].effects.ayaSigil = true;
           }
@@ -1928,7 +2124,7 @@ function applyNeedle(state, command) {
       }
       for (const hit of group) {
         if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
-          groupHit = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || groupHit;
+          groupHit = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements, actor) || groupHit;
         }
       }
       if (groupHit) {
@@ -1982,10 +2178,15 @@ function applyAmulet(state, command) {
     return { ok: false, reason: "invalid amulet command type" };
   }
   const actor = command.actor;
-  if (!canIssuePrimaryAction(state, actor)) {
+  const self = state.players[actor];
+  const koishiRole2Toggle = isKoishi(state, actor);
+  if (koishiRole2Toggle) {
+    if (!canIssueCommandByTurn(state, actor)) {
+      return { ok: false, reason: "cannot act now" };
+    }
+  } else if (!canIssuePrimaryAction(state, actor)) {
     return { ok: false, reason: "cannot act now" };
   }
-  const self = state.players[actor];
   if (!canUseRoleSkillByMech(state, actor, "role2")) {
     return { ok: false, reason: "role2 not implemented for current mech" };
   }
@@ -1995,12 +2196,26 @@ function applyAmulet(state, command) {
   if (!Number.isInteger(command.spirit) || command.spirit !== 1) {
     return { ok: false, reason: "amulet spirit must be 1" };
   }
-  if (self.stats.spirit < 1) {
+  if (!koishiRole2Toggle && self.stats.spirit < 1) {
     return { ok: false, reason: "not enough spirit" };
   }
   const target = keyToCoord(command.to);
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
+  }
+  if (koishiRole2Toggle) {
+    if (!coordsEqual(target, self.pos)) {
+      return { ok: false, reason: "koishi role2 must target self tile" };
+    }
+    const nextPlayers2 = clonePlayers(state.players);
+    nextPlayers2[actor].effects.koishiHeartAuraActive = !nextPlayers2[actor].effects.koishiHeartAuraActive;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers2
+      }
+    };
   }
   if (isAya(state, actor)) {
     const legalMove = containsCoord(getLegalMoveTargets(state, actor), target);
@@ -2055,7 +2270,7 @@ function applyAmulet(state, command) {
       clearAyaSigilOnTarget(nextPlayers2, nextWalls2, actor, target);
     }
     if (coordsEqual(nextPlayers2[enemySide2].pos, target)) {
-      applyEnemyDamage(nextPlayers2, enemySide2, damage, damageAnnouncements2);
+      applyEnemyDamage(nextPlayers2, enemySide2, damage, damageAnnouncements2, actor);
     }
     applyWallDamage(nextPlayers2, nextWalls2, actor, target, damage);
     nextPlayers2[actor].effects.ayaNextAttackBuff = false;
@@ -2106,7 +2321,7 @@ function applyAmulet(state, command) {
       applyWallDamage(nextPlayers, nextWalls, actor, hit.coord, 1);
     }
     if (coordsEqual(nextPlayers[enemySide].pos, hit.coord)) {
-      hitEnemy = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements) || hitEnemy;
+      hitEnemy = applyEnemyDamage(nextPlayers, enemySide, 1, damageAnnouncements, actor) || hitEnemy;
     }
   }
   const spiritAfter = nextPlayers[actor].stats.spirit - 1 + (hitEnemy ? 1 : 0);
@@ -2187,6 +2402,18 @@ function applyOrb(state, command) {
       }
     };
   }
+  if (isKoishi(state, actor)) {
+    nextPlayers[actor].stats.spirit -= command.spirit;
+    nextPlayers[actor].effects.koishiPolygraphTurns = command.spirit;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers,
+        turn: markTurnActionEnded(state.turn)
+      }
+    };
+  }
   nextPlayers[actor].stats.spirit -= command.spirit;
   nextPlayers[actor].effects.orbVisionRadius = command.spirit;
   nextPlayers[actor].effects.orbTurns = command.spirit;
@@ -2227,6 +2454,29 @@ function applyBlink(state, command) {
   if (!target) {
     return { ok: false, reason: "invalid target coordinate" };
   }
+  if (isKoishi(state, actor)) {
+    if (command.spirit !== KOISHI_ROLE4_COST) {
+      return { ok: false, reason: "koishi role4 spirit must be 5" };
+    }
+    if (!coordsEqual(target, self.pos)) {
+      return { ok: false, reason: "koishi role4 must target self tile" };
+    }
+    if (self.effects.koishiPhilosophyActive) {
+      return { ok: false, reason: "koishi role4 already active" };
+    }
+    const nextPlayers2 = clonePlayers(state.players);
+    nextPlayers2[actor].stats.spirit -= KOISHI_ROLE4_COST;
+    nextPlayers2[actor].effects.koishiPhilosophyActive = true;
+    nextPlayers2[actor].effects.koishiPhilosophyHits = 0;
+    return {
+      ok: true,
+      state: {
+        ...state,
+        players: nextPlayers2,
+        turn: markTurnActionEnded(state.turn)
+      }
+    };
+  }
   const legal = containsCoord(getLegalBlinkTargets(state, actor, command.spirit), target);
   if (!legal) {
     return { ok: false, reason: "illegal blink target" };
@@ -2248,7 +2498,7 @@ function applyBlink(state, command) {
           nextWalls[coordToKey(hit.coord)].ayaSigil = false;
         }
         if (coordsEqual(nextPlayers2[enemySide].pos, hit.coord)) {
-          hitEnemy = applyEnemyDamage(nextPlayers2, enemySide, damage, damageAnnouncements) || hitEnemy;
+          hitEnemy = applyEnemyDamage(nextPlayers2, enemySide, damage, damageAnnouncements, actor) || hitEnemy;
         }
       }
     }
@@ -2305,15 +2555,35 @@ function decrementTimedEffectsWhenTurnStarts(players, enteringSide) {
   if (effect.ayaStealthTurns > 0) {
     effect.ayaStealthTurns = Math.max(0, effect.ayaStealthTurns - 1);
   }
+  if (effect.koishiStealthTurns > 0) {
+    effect.koishiStealthTurns = Math.max(0, effect.koishiStealthTurns - 1);
+    if (effect.koishiStealthTurns === 0 && isGrass(players[enteringSide].pos)) {
+      effect.koishiStealthTurns = 1;
+    }
+  }
+  if (effect.koishiPolygraphTurns > 0) {
+    effect.koishiPolygraphTurns = Math.max(0, effect.koishiPolygraphTurns - 1);
+  }
 }
 function advanceTurnState(state, actor) {
   const nextSide = oppositeSide(actor);
   const nextRound = actor === "red" ? state.turn.round + 1 : state.turn.round;
   const nextPlayers = clonePlayers(state.players);
+  const nextWalls = cloneWalls(state.walls);
   decrementTimedEffectsWhenTurnStarts(nextPlayers, nextSide);
+  const turnStartDamageAnnouncements = [];
+  applyKoishiHeartAuraAtEnemyTurnStart(nextPlayers, nextWalls, nextSide, turnStartDamageAnnouncements);
+  const winner = getWinnerFromPlayers({
+    ...state,
+    players: nextPlayers,
+    walls: nextWalls
+  });
   return {
     ...state,
     players: nextPlayers,
+    walls: nextWalls,
+    announcements: appendTurnAnnouncements(state.announcements, nextRound, nextSide, turnStartDamageAnnouncements),
+    winner,
     turn: {
       side: nextSide,
       round: nextRound,
@@ -2464,7 +2734,7 @@ function buildPerspective(state, side) {
   const enemySide = oppositeSide(side);
   const enemyUnit = state.players[enemySide];
   const enemyPos = enemyUnit.pos;
-  const enemyStealthed = enemyUnit.mechId === "aya" && enemyUnit.effects.ayaStealthTurns > 0;
+  const enemyStealthed = enemyUnit.mechId === "aya" && enemyUnit.effects.ayaStealthTurns > 0 || enemyUnit.mechId === "koishi" && enemyUnit.effects.koishiStealthTurns > 0;
   const enemyVisible = !enemyStealthed && isVisibleFrom(state, side, enemyPos);
   return {
     side,
@@ -2633,6 +2903,9 @@ ${logBox.textContent}`;
     },
     getSelectedSide() {
       return sideSelect.value === "red" ? "red" : "blue";
+    },
+    setSelectedSide(side) {
+      sideSelect.value = side === "red" ? "red" : "blue";
     },
     setTransportStatus(status) {
       statusLine.textContent = `\u72B6\u6001: ${status.type} | ${status.detail}`;
@@ -2813,8 +3086,19 @@ function localUnit(ctx) {
 function isAya2(ctx) {
   return localUnit(ctx).mechId === "aya";
 }
+function isKoishi2(ctx) {
+  return localUnit(ctx).mechId === "koishi";
+}
 function getSpiritSpendBounds(skill, ctx) {
-  if (skill === "build" || skill === "role4") {
+  if (skill === "build") {
+    const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
+    return { min: max > 0 ? 1 : 0, max };
+  }
+  if (skill === "role4") {
+    if (isKoishi2(ctx)) {
+      const canUse = localUnit(ctx).stats.spirit >= 5;
+      return { min: canUse ? 5 : 0, max: canUse ? 5 : 0 };
+    }
     const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
     return { min: max > 0 ? 1 : 0, max };
   }
@@ -2867,8 +3151,11 @@ function isVariableSpiritSkill(skill, ctx) {
   if (!skill) {
     return false;
   }
-  if (skill === "build" || skill === "role4") {
+  if (skill === "build") {
     return true;
+  }
+  if (skill === "role4") {
+    return !isKoishi2(ctx);
   }
   if (skill === "role1" || skill === "role3") {
     return !isAya2(ctx);
@@ -2885,6 +3172,7 @@ function createInitialInputState() {
 function getSkillAvailability(ctx) {
   const self = localUnit(ctx);
   const aya = self.mechId === "aya";
+  const koishi = self.mechId === "koishi";
   const noAction = {
     move: false,
     build: false,
@@ -2905,9 +3193,9 @@ function getSkillAvailability(ctx) {
     scout: canUseScout(ctx.game, ctx.localSide),
     attack: getLegalAttackTargets(ctx.game, ctx.localSide).length > 0,
     role1: canUseRoleSkillByState(ctx.game, ctx.localSide, "role1") && self.skills.role1 && self.stats.spirit >= (aya ? 2 : 1),
-    role2: canUseRoleSkillByState(ctx.game, ctx.localSide, "role2") && self.skills.role2 && self.stats.spirit >= 1 && (!aya || ayaRole2CanUse),
+    role2: (koishi ? !ctx.game.winner && ctx.game.turn.side === ctx.localSide : canUseRoleSkillByState(ctx.game, ctx.localSide, "role2")) && self.skills.role2 && (koishi || self.stats.spirit >= 1) && (!aya || ayaRole2CanUse),
     role3: canUseRoleSkillByState(ctx.game, ctx.localSide, "role3") && self.skills.role3 && self.stats.spirit >= 1,
-    role4: canUseRoleSkillByState(ctx.game, ctx.localSide, "role4") && self.skills.role4 && hasAnyBlinkTarget(ctx)
+    role4: canUseRoleSkillByState(ctx.game, ctx.localSide, "role4") && self.skills.role4 && (koishi ? self.stats.spirit >= 5 && !self.effects.koishiPhilosophyActive : hasAnyBlinkTarget(ctx))
   };
 }
 function onSkillClick(state, skill, ctx) {
@@ -2932,6 +3220,24 @@ function onSkillClick(state, skill, ctx) {
   }
   if (isRoleSkillId(skill) && !canUseRoleSkillByState(ctx.game, ctx.localSide, skill)) {
     return { next: { ...nextState, activeSkill: null } };
+  }
+  if (skill === "role2" && isKoishi2(ctx)) {
+    return {
+      next: {
+        ...nextState,
+        activeSkill: null
+      },
+      command: createAmuletCommand(ctx.localSide, localUnit(ctx).pos)
+    };
+  }
+  if (skill === "role4" && isKoishi2(ctx)) {
+    return {
+      next: {
+        ...nextState,
+        activeSkill: null
+      },
+      command: createBlinkCommand(ctx.localSide, localUnit(ctx).pos, 5)
+    };
   }
   const bounds = getSpiritSpendBounds(skill, ctx);
   const clampedSpend = bounds.max > 0 ? Math.max(bounds.min, Math.min(bounds.max, nextState.spiritSpend)) : 1;
@@ -3063,6 +3369,12 @@ function onBoardClick(state, coord, ctx) {
     if (coordsEqual(selfPos2, coord)) {
       return { next: { ...state } };
     }
+    if (localUnit(ctx).mechId === "koishi") {
+      const legal = getLegalKoishiRole1Targets(ctx.game, ctx.localSide);
+      if (!containsCoord2(legal, coord)) {
+        return { next: { ...state } };
+      }
+    }
     const spirit = localUnit(ctx).mechId === "aya" ? 2 : state.spiritSpend;
     return {
       next: {
@@ -3073,6 +3385,14 @@ function onBoardClick(state, coord, ctx) {
     };
   }
   if (state.activeSkill === "role2") {
+    if (localUnit(ctx).mechId === "koishi") {
+      return {
+        next: {
+          ...state,
+          activeSkill: null
+        }
+      };
+    }
     if (localUnit(ctx).mechId === "aya") {
       const legalMove = getLegalMoveTargets(ctx.game, ctx.localSide);
       const legalAttack = getLegalAttackTargets(ctx.game, ctx.localSide);
@@ -3100,6 +3420,12 @@ function onBoardClick(state, coord, ctx) {
     };
   }
   if (state.activeSkill === "role3") {
+    if (localUnit(ctx).mechId === "aya") {
+      const selfPos2 = localUnit(ctx).pos;
+      if (!coordsEqual(selfPos2, coord)) {
+        return { next: { ...state } };
+      }
+    }
     const spirit = localUnit(ctx).mechId === "aya" ? 1 : state.spiritSpend;
     return {
       next: {
@@ -3110,6 +3436,14 @@ function onBoardClick(state, coord, ctx) {
     };
   }
   if (state.activeSkill === "role4") {
+    if (localUnit(ctx).mechId === "koishi") {
+      return {
+        next: {
+          ...state,
+          activeSkill: null
+        }
+      };
+    }
     const legal = getLegalBlinkTargets(ctx.game, ctx.localSide, state.spiritSpend);
     if (!containsCoord2(legal, coord)) {
       return { next: { ...state } };
@@ -3177,8 +3511,20 @@ function getHighlights(state, ctx) {
     };
   }
   if (state.activeSkill === "role4") {
+    if (localUnit(ctx).mechId === "koishi") {
+      return {
+        moveHighlights: [],
+        attackHighlights: []
+      };
+    }
     return {
       moveHighlights: getLegalBlinkTargets(ctx.game, ctx.localSide, state.spiritSpend),
+      attackHighlights: []
+    };
+  }
+  if (state.activeSkill === "role1" && localUnit(ctx).mechId === "koishi") {
+    return {
+      moveHighlights: getLegalKoishiRole1Targets(ctx.game, ctx.localSide),
       attackHighlights: []
     };
   }
@@ -3186,6 +3532,12 @@ function getHighlights(state, ctx) {
     return {
       moveHighlights: getLegalMoveTargets(ctx.game, ctx.localSide),
       attackHighlights: getLegalAttackTargets(ctx.game, ctx.localSide)
+    };
+  }
+  if (state.activeSkill === "role3" && localUnit(ctx).mechId === "aya") {
+    return {
+      moveHighlights: [{ ...localUnit(ctx).pos }],
+      attackHighlights: []
     };
   }
   return {
@@ -7964,14 +8316,23 @@ async function loadAssets() {
     wind,
     sigil,
     orbEffect,
+    koishiHeart,
     reimuRole1,
     reimuRole2,
     reimuRole3,
     reimuRole4,
+    koishiRole1,
+    koishiRole2,
+    koishiRole3,
+    koishiRole4,
     ayaRole1,
     ayaRole2,
     ayaRole3,
-    ayaRole4
+    ayaRole4,
+    marker1,
+    marker2,
+    marker3,
+    marker4
   ] = await Promise.all([
     loadImage("./assets/tiles/ground.png"),
     loadImage("./assets/tiles/grass.png"),
@@ -7986,20 +8347,29 @@ async function loadAssets() {
     loadImage("./assets/bullet/aya/wind.png"),
     loadImage("./assets/bullet/aya/sigil.png"),
     loadImage("./assets/bullet/reimu/yinyangorb.png"),
+    loadImage("./assets/bullet/koishi/heart.png"),
     loadRoleIconSet("./assets/skill/reimu", "reimu_1"),
     loadRoleIconSet("./assets/skill/reimu", "reimu_2"),
     loadRoleIconSet("./assets/skill/reimu", "reimu_3"),
     loadRoleIconSet("./assets/skill/reimu", "reimu_4"),
+    loadSingleRoleIcon("./assets/skill/koishi/koishi1.png"),
+    loadSingleRoleIcon("./assets/skill/koishi/koishi2.png"),
+    loadSingleRoleIcon("./assets/skill/koishi/koishi3.png"),
+    loadSingleRoleIcon("./assets/skill/koishi/koishi4.png"),
     loadSingleRoleIcon("./assets/skill/aya/aya1.png"),
     loadSingleRoleIcon("./assets/skill/aya/aya2.png"),
     loadSingleRoleIcon("./assets/skill/aya/aya3.png"),
-    loadSingleRoleIcon("./assets/skill/aya/aya4.png")
+    loadSingleRoleIcon("./assets/skill/aya/aya4.png"),
+    loadImage("./assets/markers/mark1.png"),
+    loadImage("./assets/markers/mark2.png"),
+    loadImage("./assets/markers/mark3.png"),
+    loadImage("./assets/markers/mark4.png")
   ]);
   const numbers = /* @__PURE__ */ new Map();
   const numberSrc = /* @__PURE__ */ new Map();
   const tasks = [];
-  for (let value = 1; value <= 10; value += 1) {
-    const file = value === 10 ? "no10.png" : `no${value}.png`;
+  for (let value = 0; value <= 10; value += 1) {
+    const file = value === 0 ? "no.png" : value === 10 ? "no10.png" : `no${value}.png`;
     const src = `./assets/number/${file}`;
     numberSrc.set(value, src);
     tasks.push(
@@ -8014,6 +8384,7 @@ async function loadAssets() {
     grass,
     spawn,
     wall,
+    markers: [marker1, marker2, marker3, marker4],
     chars: {
       reimu,
       marisa,
@@ -8025,6 +8396,7 @@ async function loadAssets() {
     wind,
     sigil,
     orbEffect,
+    koishiHeart,
     roleIconsByMech: {
       reimu: {
         role1: reimuRole1,
@@ -8033,7 +8405,12 @@ async function loadAssets() {
         role4: reimuRole4
       },
       marisa: {},
-      koishi: {},
+      koishi: {
+        role1: koishiRole1,
+        role2: koishiRole2,
+        role3: koishiRole3,
+        role4: koishiRole4
+      },
       aya: {
         role1: ayaRole1,
         role2: ayaRole2,
@@ -8090,18 +8467,18 @@ function easeOutQuad(t) {
 function easeInQuad(t) {
   return t * t;
 }
-function getDisplayNumberTexture(assets, value) {
-  if (value <= 0) {
+function getDisplayNumberTexture(assets, value, allowZero = false) {
+  if (value < 0 || !allowZero && value === 0) {
     return null;
   }
-  const clamped = Math.min(10, Math.floor(value));
+  const clamped = allowZero ? Math.max(0, Math.min(10, Math.floor(value))) : Math.min(10, Math.floor(value));
   return assets.numbers.get(clamped) ?? null;
 }
-function getDisplayNumberSrc(assets, value) {
-  if (value <= 0) {
+function getDisplayNumberSrc(assets, value, allowZero = false) {
+  if (value < 0 || !allowZero && value === 0) {
     return null;
   }
-  const clamped = Math.min(10, Math.floor(value));
+  const clamped = allowZero ? Math.max(0, Math.min(10, Math.floor(value))) : Math.min(10, Math.floor(value));
   return assets.numberSrc.get(clamped) ?? null;
 }
 function isVariableSkill(skill) {
@@ -8109,12 +8486,76 @@ function isVariableSkill(skill) {
 }
 function isRayIndicatorSkill(skill, mechId) {
   if (skill === "role1" || skill === "role4") {
-    return true;
+    return mechId !== "koishi";
   }
   if (skill === "role2") {
-    return mechId !== "aya";
+    return mechId !== "aya" && mechId !== "koishi";
   }
   return false;
+}
+function getUnitDisplayBadges(unit) {
+  if (unit.mechId === "koishi") {
+    return [
+      ...unit.effects.koishiStealthTurns > 0 ? [{ value: unit.effects.koishiStealthTurns }] : [],
+      ...unit.effects.koishiPolygraphTurns > 0 ? [{ value: unit.effects.koishiPolygraphTurns }] : [],
+      ...unit.effects.koishiPhilosophyActive ? [{ value: 1 }] : []
+    ];
+  }
+  if (unit.mechId === "aya") {
+    const stealthTurns = unit.effects.ayaStealthTurns > 0 ? unit.effects.ayaStealthTurns : unit.effects.ayaStealthReady ? 2 : 0;
+    return stealthTurns > 0 ? [{ value: stealthTurns }] : [];
+  }
+  if (unit.effects.orbTurns > 0) {
+    return [{ value: unit.effects.orbTurns }];
+  }
+  return [];
+}
+function getKoishiAuraTiles(center) {
+  const result = [];
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) {
+        continue;
+      }
+      const x = center.x + dx;
+      const y = center.y + dy;
+      if (x < 0 || x >= BOARD_WIDTH || y < 0 || y >= BOARD_HEIGHT) {
+        continue;
+      }
+      result.push({ x, y });
+    }
+  }
+  return result;
+}
+function hasPerspectivePiece(perspective, side) {
+  return Boolean(perspective.pieces[side]);
+}
+function drawBadgeStrip(ctx, assets, px, py, tile, badges) {
+  if (badges.length === 0) {
+    return;
+  }
+  const badgeSize = Math.floor(tile * 0.34);
+  const gap = 2;
+  for (let index = 0; index < badges.length; index += 1) {
+    const badge = badges[index];
+    const texture = getDisplayNumberTexture(assets, badge.value, Boolean(badge.allowZero));
+    if (!texture) {
+      continue;
+    }
+    const drawX = px + tile - badgeSize - 2 - index * (badgeSize + gap);
+    const drawY = py + 2;
+    ctx.drawImage(texture, drawX, drawY, badgeSize, badgeSize);
+  }
+}
+function shouldDrawKoishiAura(payload, side) {
+  const unit = payload.state.players[side];
+  if (unit.mechId !== "koishi" || !unit.effects.koishiHeartAuraActive) {
+    return false;
+  }
+  if (side === payload.localSide) {
+    return true;
+  }
+  return hasPerspectivePiece(payload.perspective, side);
 }
 async function createGameView(root) {
   const assets = await loadAssets();
@@ -8136,6 +8577,8 @@ async function createGameView(root) {
   let animationFrame = 0;
   let hoverCoord = null;
   let hoverBpOption = null;
+  let selectedMarkerIndex = 0;
+  const localMarkers = /* @__PURE__ */ new Map();
   let projectileId = 0;
   let projectileBatchId = 0;
   const projectileAnimations = [];
@@ -8185,15 +8628,24 @@ async function createGameView(root) {
   const skillLayout = document.createElement("div");
   skillLayout.className = "skill-layout";
   skillPanel.appendChild(skillLayout);
-  const skillLeft = document.createElement("div");
-  skillLeft.className = "skill-left";
-  skillLayout.appendChild(skillLeft);
+  const battleSkillSection = document.createElement("div");
+  battleSkillSection.className = "battle-skill-section";
+  skillLayout.appendChild(battleSkillSection);
   const basicSkillGrid = document.createElement("div");
   basicSkillGrid.className = "basic-skill-grid";
-  skillLeft.appendChild(basicSkillGrid);
+  battleSkillSection.appendChild(basicSkillGrid);
+  const roleActionColumn = document.createElement("div");
+  roleActionColumn.className = "role-action-column";
+  battleSkillSection.appendChild(roleActionColumn);
   const roleSkillGrid = document.createElement("div");
   roleSkillGrid.className = "role-skill-grid";
-  skillLeft.appendChild(roleSkillGrid);
+  roleActionColumn.appendChild(roleSkillGrid);
+  const skillActions = document.createElement("div");
+  skillActions.className = "skill-actions";
+  roleActionColumn.appendChild(skillActions);
+  const markSkillGrid = document.createElement("div");
+  markSkillGrid.className = "mark-skill-grid";
+  battleSkillSection.appendChild(markSkillGrid);
   const bpSkillSection = document.createElement("div");
   bpSkillSection.className = "bp-skill-section";
   bpSkillSection.style.display = "none";
@@ -8205,6 +8657,16 @@ async function createGameView(root) {
   const bpSkillGrid = document.createElement("div");
   bpSkillGrid.className = "bp-skill-grid";
   bpSkillSection.appendChild(bpSkillGrid);
+  const bpSkillActions = document.createElement("div");
+  bpSkillActions.className = "bp-skill-actions";
+  bpSkillSection.appendChild(bpSkillActions);
+  const bpConfirmButton = document.createElement("button");
+  bpConfirmButton.className = "end-turn-btn hollow-frame";
+  bpConfirmButton.textContent = "BP Confirm";
+  bpConfirmButton.addEventListener("click", () => {
+    handlers.onBpConfirm();
+  });
+  bpSkillActions.appendChild(bpConfirmButton);
   const bpSkillItems = /* @__PURE__ */ new Map();
   for (const roleSkillId of ["role1", "role2", "role3", "role4"]) {
     const item = document.createElement("div");
@@ -8388,6 +8850,29 @@ async function createGameView(root) {
     }
     skillButtons.set(skill.id, button);
   }
+  const markButtons = [];
+  function refreshMarkerSelection() {
+    markButtons.forEach((button, index) => {
+      button.classList.toggle("mark-selected", index === selectedMarkerIndex);
+    });
+  }
+  for (let index = 0; index < assets.markers.length; index += 1) {
+    const button = document.createElement("button");
+    button.className = "mark-btn hollow-frame";
+    const icon = document.createElement("img");
+    icon.className = "mark-btn-icon";
+    icon.src = assets.markers[index].src;
+    icon.alt = `mark-${index + 1}`;
+    icon.draggable = false;
+    button.appendChild(icon);
+    button.addEventListener("click", () => {
+      selectedMarkerIndex = index;
+      refreshMarkerSelection();
+    });
+    markSkillGrid.appendChild(button);
+    markButtons.push(button);
+  }
+  refreshMarkerSelection();
   const spiritPopup = document.createElement("div");
   spiritPopup.className = "spirit-popup";
   const spiritUp = document.createElement("button");
@@ -8404,9 +8889,6 @@ async function createGameView(root) {
   spiritDown.addEventListener("click", () => handlers.onSpiritAdjust(-1));
   spiritPopup.appendChild(spiritDown);
   skillPanel.appendChild(spiritPopup);
-  const skillActions = document.createElement("div");
-  skillActions.className = "skill-actions";
-  skillLayout.appendChild(skillActions);
   const endTurnButton = document.createElement("button");
   endTurnButton.className = "end-turn-btn hollow-frame";
   endTurnButton.textContent = "\u7A7A\u8FC7";
@@ -8620,6 +9102,28 @@ async function createGameView(root) {
         );
       }
     }
+    for (const side of ["blue", "red"]) {
+      if (!shouldDrawKoishiAura(payload, side)) {
+        continue;
+      }
+      const koishi = payload.state.players[side];
+      for (const coord of getKoishiAuraTiles(koishi.pos)) {
+        const cell = getCell(payload.perspective.cells, coord.x, coord.y);
+        if (!cell.visible) {
+          continue;
+        }
+        const px = left + coord.x * tile;
+        const py = top + coord.y * tile;
+        const size = Math.floor(tile * 0.42);
+        ctx.drawImage(
+          assets.koishiHeart,
+          px + Math.floor((tile - size) * 0.5),
+          py + Math.floor((tile - size) * 0.5),
+          size,
+          size
+        );
+      }
+    }
     const now = performance.now();
     const drawPiece = (side) => {
       const logicalPos = payload.perspective.pieces[side];
@@ -8656,16 +9160,31 @@ async function createGameView(root) {
         const orbX = centerX + Math.cos(angle) * orbitRadius - orbSize * 0.5;
         const orbY = centerY + Math.sin(angle) * orbitRadius - orbSize * 0.5;
         ctx.drawImage(assets.orbEffect, orbX, orbY, orbSize, orbSize);
-        const turnTexture = getDisplayNumberTexture(assets, unit.effects.orbTurns);
-        if (turnTexture) {
-          const badgeSize = Math.floor(tile * 0.34);
-          ctx.drawImage(turnTexture, px + tile - badgeSize - 2, py + 2, badgeSize, badgeSize);
-        }
       }
+      drawBadgeStrip(ctx, assets, px, py, tile, getUnitDisplayBadges(unit));
     };
     drawPiece("blue");
     drawPiece("red");
     const activeSkill = payload.input.activeSkill;
+    if (activeSkill === null && !payload.input.quickCast) {
+      const markerSize = Math.floor(tile * 0.58);
+      for (const [coordKey, markerIndex] of localMarkers) {
+        const coord = keyToCoord(coordKey);
+        if (!coord) {
+          continue;
+        }
+        const marker = assets.markers[markerIndex] ?? assets.markers[0];
+        const px = left + coord.x * tile;
+        const py = top + coord.y * tile;
+        ctx.drawImage(
+          marker,
+          px + Math.floor((tile - markerSize) * 0.5),
+          py + Math.floor((tile - markerSize) * 0.5),
+          markerSize,
+          markerSize
+        );
+      }
+    }
     const selfMech = payload.state.players[payload.localSide].mechId;
     if (isRayIndicatorSkill(activeSkill, selfMech) && hoverCoord) {
       const self = payload.state.players[payload.localSide].pos;
@@ -8830,13 +9349,30 @@ async function createGameView(root) {
     if (!coord) {
       return;
     }
+    if (lastPayload && lastPayload.input.activeSkill === null && !lastPayload.input.quickCast) {
+      const selfPos = lastPayload.state.players[lastPayload.localSide].pos;
+      if (coord.x !== selfPos.x || coord.y !== selfPos.y) {
+        const key = coordToKey(coord);
+        const clickedCell = getCell(lastPayload.perspective.cells, coord.x, coord.y);
+        if (localMarkers.has(key)) {
+          localMarkers.delete(key);
+          render(lastPayload);
+          return;
+        }
+        if (!clickedCell.visible) {
+          localMarkers.set(key, selectedMarkerIndex);
+          render(lastPayload);
+          return;
+        }
+      }
+    }
     handlers.onCellClick(coord);
   });
   function renderSkillState(payload) {
     const availability = payload.skillAvailability;
     const self = payload.state.players[payload.localSide];
     const mech = getMechDefinition(self.mechId);
-    skillLeft.style.display = "flex";
+    battleSkillSection.style.display = "flex";
     bpSkillSection.style.display = "none";
     for (const skill of SKILLS) {
       const skillId = skill.id;
@@ -8870,14 +9406,35 @@ async function createGameView(root) {
         button.textContent = skill.label;
       }
     }
-    const role3Turns = self.mechId === "aya" ? self.effects.ayaStealthTurns : self.effects.orbTurns;
+    const roleBadgeValues = {};
+    if (self.mechId === "koishi") {
+      if (self.effects.koishiStealthTurns > 0) {
+        roleBadgeValues.role1 = { value: self.effects.koishiStealthTurns };
+      }
+      if (self.effects.koishiPolygraphTurns > 0) {
+        roleBadgeValues.role3 = { value: self.effects.koishiPolygraphTurns };
+      }
+      if (self.effects.koishiPhilosophyActive) {
+        roleBadgeValues.role4 = {
+          value: 1
+        };
+      }
+    } else if (self.mechId === "aya") {
+      const stealthTurns = self.effects.ayaStealthTurns > 0 ? self.effects.ayaStealthTurns : self.effects.ayaStealthReady ? 2 : 0;
+      if (stealthTurns > 0) {
+        roleBadgeValues.role3 = { value: stealthTurns };
+      }
+    } else if (self.effects.orbTurns > 0) {
+      roleBadgeValues.role3 = { value: self.effects.orbTurns };
+    }
     for (const [skill, badge] of roleDurationBadges) {
-      if (skill !== "role3") {
+      const info = roleBadgeValues[skill];
+      if (!info || !self.skills[skill] || !isRoleSkillImplemented(self.mechId, skill)) {
         badge.style.display = "none";
         continue;
       }
-      const src = getDisplayNumberSrc(assets, role3Turns);
-      if (!src || !self.skills.role3 || !isRoleSkillImplemented(self.mechId, "role3")) {
+      const src = getDisplayNumberSrc(assets, info.value, Boolean(info.allowZero));
+      if (!src) {
         badge.style.display = "none";
         continue;
       }
@@ -8957,21 +9514,26 @@ async function createGameView(root) {
     statusGold.textContent = `Your Current Selection: ${getBpOptionLabel(payload.selectedOption)}`;
   }
   function renderBpAnnouncement(payload) {
-    const local = payload.localSide;
-    const enemy = oppositeSide(local);
-    const localState = payload.bp.sides[local];
-    const enemyState = payload.bp.sides[enemy];
+    const blueState = payload.bp.sides.blue;
+    const redState = payload.bp.sides.red;
+    const activeStep = payload.bp.phase === "blueBan" ? 1 : payload.bp.phase === "redBan" || payload.bp.phase === "redPick" ? 2 : payload.bp.phase === "bluePick" ? 3 : 0;
     const rows = [
-      { side: local, text: `Your Ban (to enemy): ${getBpOptionLabel(localState.ban)}` },
-      { side: local, text: `Your Pick: ${getBpOptionLabel(localState.pick)}` },
-      { side: enemy, text: `Enemy Ban (to you): ${getBpOptionLabel(enemyState.ban)}` },
-      { side: enemy, text: `Enemy Pick: ${getBpOptionLabel(enemyState.pick)}` }
+      { side: "blue", step: 1, text: `1. Blue Ban: ${getBpOptionLabel(blueState.ban)}` },
+      {
+        side: "red",
+        step: 2,
+        text: `2. Red Ban/Pick: Ban ${getBpOptionLabel(redState.ban)} | Pick ${getBpOptionLabel(redState.pick)}`
+      },
+      { side: "blue", step: 3, text: `3. Blue Pick: ${getBpOptionLabel(blueState.pick)}` }
     ];
     announcementList.innerHTML = "";
     for (const row of rows) {
       const item = document.createElement("div");
       item.className = "announcement-item";
       item.classList.add(row.side === "blue" ? "announcement-blue" : "announcement-red");
+      if (row.step === activeStep) {
+        item.style.borderColor = "#fff";
+      }
       item.textContent = row.text;
       announcementList.appendChild(item);
     }
@@ -8980,7 +9542,7 @@ async function createGameView(root) {
     hideUnlockPopup();
     hideTooltip();
     spiritPopup.style.display = "none";
-    skillLeft.style.display = "none";
+    battleSkillSection.style.display = "none";
     bpSkillSection.style.display = "flex";
     let mechId = null;
     if (payload.selectedOption && payload.selectedOption !== "none") {
@@ -9003,20 +9565,20 @@ async function createGameView(root) {
     }
     const turn = getBpTurn(payload.bp);
     if (!turn) {
-      endTurnButton.textContent = "BP Done";
-      endTurnButton.disabled = true;
+      bpConfirmButton.textContent = "BP Done";
+      bpConfirmButton.disabled = true;
       return;
     }
     if (turn.side !== payload.localSide) {
-      endTurnButton.textContent = `Waiting for ${getSideLabel(turn.side)}`;
-      endTurnButton.disabled = true;
+      bpConfirmButton.textContent = `Waiting for ${getSideLabel(turn.side)}`;
+      bpConfirmButton.disabled = true;
       return;
     }
     const selectedOption = payload.selectedOption;
     const hasSelection = Boolean(selectedOption);
     const validSelection = Boolean(selectedOption) && (turn.action === "ban" ? true : selectedOption !== "none" && isBpOptionEnabled(payload.bp, payload.localSide, selectedOption));
-    endTurnButton.textContent = turn.action === "ban" ? "Confirm Ban" : "Confirm Pick";
-    endTurnButton.disabled = !payload.connected || !hasSelection || !validSelection;
+    bpConfirmButton.textContent = turn.action === "ban" ? "Confirm Ban" : "Confirm Pick";
+    bpConfirmButton.disabled = !payload.connected || !hasSelection || !validSelection;
   }
   function drawBpBoard(payload) {
     const canvasSize = updateCanvasSize();
@@ -9032,23 +9594,135 @@ async function createGameView(root) {
     ctx.fillRect(0, 0, w, h);
     boardMetrics = null;
     bpCardLayouts.length = 0;
-    const cols = 3;
-    const rows = 2;
-    const paddingX = Math.max(12, Math.floor(w * 0.035));
-    const paddingY = Math.max(12, Math.floor(h * 0.06));
-    const gapX = Math.max(10, Math.floor(w * 0.02));
-    const gapY = Math.max(10, Math.floor(h * 0.03));
-    const cardW = Math.floor((w - paddingX * 2 - gapX * (cols - 1)) / cols);
-    const cardH = Math.floor((h - paddingY * 2 - gapY * (rows - 1)) / rows);
     const turn = getBpTurn(payload.bp);
     const banAgainstLocal = getBanAgainst(payload.bp, payload.localSide);
+    const paddingX = Math.max(10, Math.floor(w * 0.03));
+    const paddingY = Math.max(10, Math.floor(h * 0.035));
+    const sectionGap = Math.max(8, Math.floor(h * 0.02));
+    const contentW = Math.max(1, w - paddingX * 2);
+    const contentH = Math.max(1, h - paddingY * 2);
+    const summaryH = Math.max(64, Math.floor(contentH / 3));
+    const poolTop = paddingY + summaryH + sectionGap;
+    const poolH = Math.max(80, h - poolTop - paddingY);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    const sideGap = Math.max(8, Math.floor(contentW * 0.03));
+    const sideW = Math.max(40, Math.floor((contentW - sideGap) / 2));
+    const sideH = summaryH;
+    const drawChoiceSlot = (left, top, width, height, label, value, side) => {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
+      ctx.fillRect(left, top, width, height);
+      ctx.strokeStyle = "rgba(255,255,255,0.34)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(left + 0.5, top + 0.5, width - 1, height - 1);
+      const labelH = Math.max(12, Math.floor(height * 0.3));
+      ctx.fillStyle = side === "blue" ? "#8abfff" : "#ff9a9a";
+      ctx.font = `${Math.max(9, Math.floor(labelH * 0.6))}px 'zpix', monospace`;
+      ctx.fillText(label, left + width * 0.5, top + labelH * 0.5);
+      const bodyX = left + 4;
+      const bodyY = top + labelH + 2;
+      const bodyW = Math.max(1, width - 8);
+      const bodyH = Math.max(1, height - labelH - 6);
+      const bodySide = Math.max(1, Math.min(bodyW, bodyH));
+      const bodySquareX = bodyX + Math.floor((bodyW - bodySide) * 0.5);
+      const bodySquareY = bodyY + Math.floor((bodyH - bodySide) * 0.5);
+      if (value === null) {
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(bodySquareX, bodySquareY, bodySide, bodySide);
+        ctx.fillStyle = "#ddd";
+        ctx.font = `${Math.max(9, Math.floor(bodySide * 0.2))}px 'zpix', monospace`;
+        ctx.fillText("Unconfirmed", bodySquareX + bodySide * 0.5, bodySquareY + bodySide * 0.5);
+        return;
+      }
+      if (value === "none") {
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(bodySquareX, bodySquareY, bodySide, bodySide);
+        ctx.strokeStyle = "rgba(255,255,255,0.75)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeRect(bodySquareX + 0.5, bodySquareY + 0.5, bodySide - 1, bodySide - 1);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#fff";
+        ctx.font = `${Math.max(9, Math.floor(bodySide * 0.2))}px 'zpix', monospace`;
+        ctx.fillText("Empty Ban", bodySquareX + bodySide * 0.5, bodySquareY + bodySide * 0.5);
+        return;
+      }
+      const mechId = value;
+      const avatar = assets.chars[mechId];
+      const srcW = Math.max(1, avatar.naturalWidth || avatar.width);
+      const srcH = Math.max(1, avatar.naturalHeight || avatar.height);
+      const scale = Math.min(bodySide / srcW, bodySide / srcH);
+      const drawW = Math.max(1, Math.floor(srcW * scale));
+      const drawH = Math.max(1, Math.floor(srcH * scale));
+      const drawX = bodySquareX + Math.floor((bodySide - drawW) * 0.5);
+      const drawY = bodySquareY + Math.floor((bodySide - drawH) * 0.5);
+      ctx.drawImage(avatar, drawX, drawY, drawW, drawH);
+      ctx.fillStyle = "rgba(0,0,0,0.56)";
+      const titleH = Math.max(12, Math.floor(bodySide * 0.34));
+      ctx.fillRect(bodySquareX, bodySquareY + bodySide - titleH, bodySide, titleH);
+      ctx.fillStyle = "#fff";
+      ctx.font = `${Math.max(8, Math.floor(bodySide * 0.2))}px 'zpix', monospace`;
+      ctx.fillText(getMechName(mechId), bodySquareX + bodySide * 0.5, bodySquareY + bodySide - Math.max(6, Math.floor(bodySide * 0.17)));
+    };
+    const drawSideSummary = (side, left) => {
+      const panelTop = paddingY;
+      const panelW = sideW;
+      const panelH = sideH;
+      const sideState = payload.bp.sides[side];
+      const sideColor = side === "blue" ? "#66adff" : "#ff6f6f";
+      const panelActive = turn?.side === side;
+      ctx.fillStyle = "rgba(255,255,255,0.05)";
+      ctx.fillRect(left, panelTop, panelW, panelH);
+      ctx.strokeStyle = panelActive ? sideColor : "rgba(255,255,255,0.5)";
+      ctx.lineWidth = panelActive ? 2 : 1;
+      ctx.strokeRect(left + 0.5, panelTop + 0.5, panelW - 1, panelH - 1);
+      const panelPadX = Math.max(6, Math.floor(panelW * 0.045));
+      const panelPadY = Math.max(6, Math.floor(panelH * 0.05));
+      const panelTitleH = Math.max(14, Math.floor(panelH * 0.17));
+      ctx.fillStyle = sideColor;
+      ctx.font = `${Math.max(9, Math.floor(panelTitleH * 0.72))}px 'zpix', monospace`;
+      ctx.fillText(side === "blue" ? "Blue Side" : "Red Side", left + panelW * 0.5, panelTop + panelPadY + panelTitleH * 0.5);
+      const slotGap = Math.max(5, Math.floor(panelH * 0.04));
+      const slotW = panelW - panelPadX * 2;
+      const slotH = Math.max(20, Math.floor((panelH - panelPadY * 2 - panelTitleH - slotGap) / 2));
+      const slotTop = panelTop + panelPadY + panelTitleH;
+      drawChoiceSlot(left + panelPadX, slotTop, slotW, slotH, "Ban", sideState.ban, side);
+      drawChoiceSlot(left + panelPadX, slotTop + slotH + slotGap, slotW, slotH, "Pick", sideState.pick, side);
+    };
+    drawSideSummary("blue", paddingX);
+    drawSideSummary("red", paddingX + contentW - sideW);
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    ctx.fillRect(paddingX, poolTop, contentW, poolH);
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(paddingX + 0.5, poolTop + 0.5, contentW - 1, poolH - 1);
+    ctx.fillStyle = "#fff";
+    ctx.font = `${Math.max(11, Math.floor(poolH * 0.08))}px 'zpix', monospace`;
+    ctx.fillText("Role Pool", paddingX + contentW * 0.5, poolTop + Math.max(12, Math.floor(poolH * 0.08)));
+    const optionCount = BP_OPTIONS.length;
+    const innerPadX = Math.max(10, Math.floor(contentW * 0.03));
+    const innerPadBottom = Math.max(8, Math.floor(poolH * 0.06));
+    const gridTop = poolTop + Math.max(18, Math.floor(poolH * 0.14));
+    const gridLeft = paddingX + innerPadX;
+    const gridW = Math.max(1, contentW - innerPadX * 2);
+    const gridH = Math.max(1, poolTop + poolH - gridTop - innerPadBottom);
+    const gap = Math.max(8, Math.floor(Math.min(gridW, gridH) * 0.03));
+    const minCardSize = Math.max(68, Math.floor(Math.min(gridW, gridH) * 0.18));
+    const maxColsByWidth = Math.max(1, Math.floor((gridW + gap) / (minCardSize + gap)));
+    const cols = Math.max(1, Math.min(optionCount, maxColsByWidth));
+    const rows = Math.max(1, Math.ceil(optionCount / cols));
+    const cardWByWidth = Math.floor((gridW - gap * (cols - 1)) / cols);
+    const cardWByHeight = Math.floor((gridH - gap * (rows - 1)) / rows);
+    const cardW = Math.min(cardWByWidth, cardWByHeight);
+    const cardH = cardW;
+    if (cardW <= 0 || cardH <= 0) {
+      return;
+    }
     BP_OPTIONS.forEach((option, index) => {
       const col = index % cols;
       const row = Math.floor(index / cols);
-      const left = paddingX + col * (cardW + gapX);
-      const top = paddingY + row * (cardH + gapY);
+      const left = gridLeft + col * (cardW + gap);
+      const top = gridTop + row * (cardH + gap);
       const enabled = payload.connected && isBpOptionEnabled(payload.bp, payload.localSide, option.id);
       const selected = payload.selectedOption === option.id;
       const hovered = hoverBpOption === option.id;
@@ -9056,41 +9730,49 @@ async function createGameView(root) {
       bpCardLayouts.push({ id: option.id, left, top, width: cardW, height: cardH });
       ctx.fillStyle = enabled ? "#050505" : "#111";
       ctx.fillRect(left, top, cardW, cardH);
-      const titleH = Math.max(22, Math.floor(cardH * 0.18));
-      const imagePad = Math.max(8, Math.floor(cardW * 0.08));
+      const titleH = Math.max(20, Math.floor(cardH * 0.2));
+      const imagePad = Math.max(6, Math.floor(cardW * 0.06));
       const imageW = cardW - imagePad * 2;
       const imageH = cardH - titleH - imagePad * 2;
-      const imageX = left + imagePad;
-      const imageY = top + imagePad;
+      const imageSide = Math.max(1, Math.min(imageW, imageH));
+      const imageX = left + imagePad + Math.floor((imageW - imageSide) * 0.5);
+      const imageY = top + imagePad + Math.floor((imageH - imageSide) * 0.5);
       if (option.id !== "none") {
         const avatar = assets.chars[option.id];
-        ctx.drawImage(avatar, imageX, imageY, imageW, imageH);
+        const srcW = Math.max(1, avatar.naturalWidth || avatar.width);
+        const srcH = Math.max(1, avatar.naturalHeight || avatar.height);
+        const scale = Math.min(imageSide / srcW, imageSide / srcH);
+        const drawW = Math.max(1, Math.floor(srcW * scale));
+        const drawH = Math.max(1, Math.floor(srcH * scale));
+        const drawX = imageX + Math.floor((imageSide - drawW) * 0.5);
+        const drawY = imageY + Math.floor((imageSide - drawH) * 0.5);
+        ctx.drawImage(avatar, drawX, drawY, drawW, drawH);
       } else {
         ctx.fillStyle = "rgba(255,255,255,0.08)";
-        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.fillRect(imageX, imageY, imageSide, imageSide);
         ctx.strokeStyle = "rgba(255,255,255,0.7)";
         ctx.lineWidth = 1;
         ctx.setLineDash([5, 3]);
-        ctx.strokeRect(imageX + 0.5, imageY + 0.5, imageW - 1, imageH - 1);
+        ctx.strokeRect(imageX + 0.5, imageY + 0.5, imageSide - 1, imageSide - 1);
         ctx.setLineDash([]);
         ctx.fillStyle = "#fff";
-        ctx.font = `${Math.max(12, Math.floor(cardW * 0.12))}px 'zpix', monospace`;
-        ctx.fillText("Empty Ban", left + cardW * 0.5, imageY + imageH * 0.5);
+        ctx.font = `${Math.max(10, Math.floor(cardW * 0.11))}px 'zpix', monospace`;
+        ctx.fillText("Empty Ban", left + cardW * 0.5, imageY + imageSide * 0.5);
       }
       if (bannedForLocalPick && option.id !== "none") {
         ctx.fillStyle = "rgba(255, 70, 70, 0.28)";
-        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.fillRect(imageX, imageY, imageSide, imageSide);
         ctx.fillStyle = "#ff8f8f";
-        ctx.font = `${Math.max(10, Math.floor(cardW * 0.09))}px 'zpix', monospace`;
-        ctx.fillText("Banned For You", left + cardW * 0.5, imageY + imageH * 0.5);
+        ctx.font = `${Math.max(9, Math.floor(cardW * 0.09))}px 'zpix', monospace`;
+        ctx.fillText("Banned For You", left + cardW * 0.5, imageY + imageSide * 0.5);
       } else if (!enabled && turn?.side === payload.localSide) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-        ctx.fillRect(imageX, imageY, imageW, imageH);
+        ctx.fillRect(imageX, imageY, imageSide, imageSide);
       }
       ctx.fillStyle = "rgba(0,0,0,0.68)";
       ctx.fillRect(left, top + cardH - titleH, cardW, titleH);
       ctx.fillStyle = "#fff";
-      ctx.font = `${Math.max(11, Math.floor(cardW * 0.095))}px 'zpix', monospace`;
+      ctx.font = `${Math.max(10, Math.floor(cardW * 0.095))}px 'zpix', monospace`;
       ctx.fillText(option.name, left + cardW * 0.5, top + cardH - titleH * 0.5);
       ctx.strokeStyle = selected ? "#58a8ff" : hovered ? "#9ec8ff" : "#fff";
       ctx.lineWidth = selected ? 3 : 2;
@@ -9270,6 +9952,10 @@ function parseInviteHash(inviteHash) {
   const code = inviteHash.trim();
   return code.length > 0 ? code : null;
 }
+function sanitizeDebugPairToken(raw) {
+  const token = (raw ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24);
+  return token.length > 0 ? token : "pair";
+}
 var FALLBACK_ICE_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 function readPeerRuntimeConfig() {
   const viteEnv = import.meta.env;
@@ -9301,8 +9987,17 @@ async function bootstrap() {
   }
   const debugEnabled = searchParams.has("debug");
   const testMode = searchParams.has("test");
+  const debugAutoPairEnabled = debugEnabled && searchParams.get("autopair") === "1";
+  const forcedSideParam = searchParams.get("side");
+  const forcedSide = forcedSideParam === "red" ? "red" : forcedSideParam === "blue" ? "blue" : null;
+  const debugPairToken = sanitizeDebugPairToken(searchParams.get("pair"));
+  const debugBluePeerId = `thchess-debug-${debugPairToken}-blue`;
+  const debugRedPeerId = `thchess-debug-${debugPairToken}-red`;
   const view = await createGameView(appRoot);
   const debugPanel = createDebugPanel(debugRoot, { debugEnabled });
+  if (!testMode && forcedSide) {
+    debugPanel.setSelectedSide(forcedSide);
+  }
   const replayDownloadLine = document.createElement("div");
   replayDownloadLine.className = "debug-line";
   replayDownloadLine.textContent = "Replay download available after match ends";
@@ -9315,14 +10010,14 @@ async function bootstrap() {
   replayDownloadLine.appendChild(document.createTextNode(" "));
   replayDownloadLine.appendChild(replayDownloadLink);
   debugRoot.appendChild(replayDownloadLine);
-  const createDefaultBattleState = () => testMode ? createInitialState({ blue: "aya" }) : createInitialState();
+  const createDefaultBattleState = () => testMode ? createInitialState({ blue: "koishi" }) : createInitialState();
   let state = createDefaultBattleState();
   if (testMode) {
     state.players.blue.stats.gold = 400;
     state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
   }
   let replayInitialState = JSON.parse(JSON.stringify(state));
-  let localSide = testMode ? "blue" : debugPanel.getSelectedSide();
+  let localSide = testMode ? "blue" : forcedSide ?? debugPanel.getSelectedSide();
   let sessionPhase = "battle";
   let bpState = createInitialBpState();
   let bpSelectedOption = null;
@@ -9843,6 +10538,21 @@ async function bootstrap() {
     bindTransport(loopback);
     loopback.connect("self");
   });
+  if (debugAutoPairEnabled && !testMode) {
+    if (localSide === "red") {
+      sessionMode = "connector";
+      pendingRemoteId = debugBluePeerId;
+      bindTransport(createPeerJsTransport(debugRedPeerId, peerRuntimeConfig));
+      debugPanel.log(`\u81EA\u52A8Debug\u914D\u5BF9\u5DF2\u542F\u52A8: red -> ${debugBluePeerId}`);
+    } else {
+      localSide = "blue";
+      debugPanel.setSelectedSide("blue");
+      sessionMode = "receiver";
+      pendingRemoteId = null;
+      bindTransport(createPeerJsTransport(debugBluePeerId, peerRuntimeConfig));
+      debugPanel.log(`\u81EA\u52A8Debug\u914D\u5BF9\u5DF2\u542F\u52A8: blue <- ${debugBluePeerId}`);
+    }
+  }
   if (testMode) {
     debugPanel.setTransportStatus({ type: "connected", detail: "test mode local" });
     debugPanel.log("test\u6A21\u5F0F\u5DF2\u542F\u7528\uFF1AP1\u4E3A\u73A9\u5BB6\uFF0CP2\u4E3A\u968F\u673A\u79FB\u52A8AI");

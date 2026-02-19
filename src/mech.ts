@@ -82,7 +82,32 @@ export const MECH_DEFINITIONS: Record<MechId, MechDefinition> = {
     id: "koishi",
     name: "Koishi",
     avatarSrc: "./assets/char/koishi.png",
-    roleSkills: buildEmptyRoleSkills(),
+    roleSkills: {
+      role1: makeSkill(
+        "role1",
+        "弾幕：「無意識の遺伝子」",
+        "消费N灵力,在1格范围内闪现，并使你完全隐形N回合。 隐形期间隐身时在对方视野范围内仅无法看见你的位置。恋隐身后，无法被普通攻击选定。 你在进入草丛时即使效果结束也不会解除隐形，恋被攻击或恋进行普通攻击后会立刻解除隐形。",
+        true,
+      ),
+      role2: makeSkill(
+        "role2",
+        "霊撃：「イドの解放」",
+        "该技能开启或关闭不被视为行动。开关技能，开启后每回合消费1灵力，关闭后不消耗灵力，灵力扣除在敌方回合开始时进行结算，若灵力不足则自动关闭。 敌方回合开始对恋周围半径1格的单位造成1点持续伤害。该伤害无法使恋解除隐形。",
+        true,
+      ),
+      role3: makeSkill(
+        "role3",
+        "視界:「妖怪ポリグラフ」",
+        "消费N灵力。使得当敌方机体在敌方回合只要执行正交移动后, 对该机体立刻造成1点持续伤害。 斜向移动或没有进行移动不会造成伤害，持续N回合。",
+        true,
+      ),
+      role4: makeSkill(
+        "role4",
+        "奥義:「嫌われ者のフィロソフィ」",
+        "消费5灵力。强化恋的下一次普通攻击额外对敌方机体造成100%已损失敌方生命值的额外伤害。该技能使用后在使用强化普通攻击前被视为一直生效。",
+        true,
+      ),
+    },
   },
   aya: {
     id: "aya",

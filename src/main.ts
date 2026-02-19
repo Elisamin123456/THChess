@@ -60,6 +60,11 @@ function parseInviteHash(inviteHash: string): string | null {
   return code.length > 0 ? code : null;
 }
 
+function sanitizeDebugPairToken(raw: string | null): string {
+  const token = (raw ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 24);
+  return token.length > 0 ? token : "pair";
+}
+
 const FALLBACK_ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 
 function readPeerRuntimeConfig(): PeerRuntimeConfig {
@@ -101,8 +106,18 @@ async function bootstrap(): Promise<void> {
 
   const debugEnabled = searchParams.has("debug");
   const testMode = searchParams.has("test");
+  const debugAutoPairEnabled = debugEnabled && searchParams.get("autopair") === "1";
+  const forcedSideParam = searchParams.get("side");
+  const forcedSide: Side | null =
+    forcedSideParam === "red" ? "red" : forcedSideParam === "blue" ? "blue" : null;
+  const debugPairToken = sanitizeDebugPairToken(searchParams.get("pair"));
+  const debugBluePeerId = `thchess-debug-${debugPairToken}-blue`;
+  const debugRedPeerId = `thchess-debug-${debugPairToken}-red`;
   const view = await createGameView(appRoot);
   const debugPanel = createDebugPanel(debugRoot, { debugEnabled });
+  if (!testMode && forcedSide) {
+    debugPanel.setSelectedSide(forcedSide);
+  }
   const replayDownloadLine = document.createElement("div");
   replayDownloadLine.className = "debug-line";
   replayDownloadLine.textContent = "Replay download available after match ends";
@@ -117,7 +132,7 @@ async function bootstrap(): Promise<void> {
   debugRoot.appendChild(replayDownloadLine);
 
   const createDefaultBattleState = (): GameState =>
-    testMode ? createInitialState({ blue: "aya" }) : createInitialState();
+    testMode ? createInitialState({ blue: "koishi" }) : createInitialState();
 
   let state = createDefaultBattleState();
   if (testMode) {
@@ -125,7 +140,7 @@ async function bootstrap(): Promise<void> {
     state.players.blue.stats.spirit = state.players.blue.stats.maxSpirit;
   }
   let replayInitialState: GameState = JSON.parse(JSON.stringify(state));
-  let localSide: Side = testMode ? "blue" : debugPanel.getSelectedSide();
+  let localSide: Side = testMode ? "blue" : forcedSide ?? debugPanel.getSelectedSide();
   let sessionPhase: "battle" | "bp" = "battle";
   let bpState = createInitialBpState();
   let bpSelectedOption: BpBanOptionId | null = null;
@@ -687,6 +702,22 @@ async function bootstrap(): Promise<void> {
     bindTransport(loopback);
     loopback.connect("self");
   });
+
+  if (debugAutoPairEnabled && !testMode) {
+    if (localSide === "red") {
+      sessionMode = "connector";
+      pendingRemoteId = debugBluePeerId;
+      bindTransport(createPeerJsTransport(debugRedPeerId, peerRuntimeConfig));
+      debugPanel.log(`\u81ea\u52a8Debug\u914d\u5bf9\u5df2\u542f\u52a8: red -> ${debugBluePeerId}`);
+    } else {
+      localSide = "blue";
+      debugPanel.setSelectedSide("blue");
+      sessionMode = "receiver";
+      pendingRemoteId = null;
+      bindTransport(createPeerJsTransport(debugBluePeerId, peerRuntimeConfig));
+      debugPanel.log(`\u81ea\u52a8Debug\u914d\u5bf9\u5df2\u542f\u52a8: blue <- ${debugBluePeerId}`);
+    }
+  }
 
   if (testMode) {
     debugPanel.setTransportStatus({ type: "connected", detail: "test mode local" });
