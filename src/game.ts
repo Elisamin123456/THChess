@@ -427,12 +427,91 @@ function hasAnyUnitAt(state: GameState, coord: Coord): boolean {
   );
 }
 
+function isStealthedUnit(unit: UnitState): boolean {
+  return (
+    (unit.mechId === "aya" && unit.effects.ayaStealthTurns > 0) ||
+    (unit.mechId === "koishi" && unit.effects.koishiStealthTurns > 0)
+  );
+}
+
+function isStealthedEnemyAt(state: GameState, actor: Side, coord: Coord): boolean {
+  const enemy = state.players[oppositeSide(actor)];
+  return coordsEqual(enemy.pos, coord) && isStealthedUnit(enemy);
+}
+
+function pickNearestCoord(anchor: Coord, candidates: Coord[]): Coord | null {
+  let best: Coord | null = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    const dist = chebyshevDistance(anchor, candidate);
+    if (!best || dist < bestDist) {
+      best = candidate;
+      bestDist = dist;
+      continue;
+    }
+    if (dist > bestDist) {
+      continue;
+    }
+    if (candidate.y < best.y || (candidate.y === best.y && candidate.x < best.x)) {
+      best = candidate;
+    }
+  }
+  return best ? { ...best } : null;
+}
+
+function findRangeMoveRedirectLanding(
+  state: GameState,
+  actor: Side,
+  selectedTarget: Coord,
+  range: number,
+): Coord | null {
+  const self = state.players[actor];
+  const enemy = state.players[oppositeSide(actor)];
+  const candidates: Coord[] = [];
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const coord: Coord = { x, y };
+      const distance = chebyshevDistance(self.pos, coord);
+      if (distance <= 0 || distance > range) {
+        continue;
+      }
+      if (isWallAliveAt(state, coord)) {
+        continue;
+      }
+      if (coordsEqual(enemy.pos, coord)) {
+        continue;
+      }
+      candidates.push(coord);
+    }
+  }
+  return pickNearestCoord(selectedTarget, candidates);
+}
+
+function findAttackRedirectTarget(state: GameState, actor: Side, selectedTarget: Coord, range: number): Coord | null {
+  const self = state.players[actor];
+  const candidates: Coord[] = [];
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const coord: Coord = { x, y };
+      const distance = chebyshevDistance(self.pos, coord);
+      if (distance <= 0 || distance > range) {
+        continue;
+      }
+      if (!isAttackTargetAt(state, actor, coord)) {
+        continue;
+      }
+      candidates.push(coord);
+    }
+  }
+  return pickNearestCoord(selectedTarget, candidates);
+}
+
 function isAttackTargetAt(state: GameState, actor: Side, coord: Coord): boolean {
   if (isWallAliveAt(state, coord)) {
     return true;
   }
   const enemy = state.players[oppositeSide(actor)];
-  if (isKoishiUnit(enemy) && enemy.effects.koishiStealthTurns > 0) {
+  if (isStealthedUnit(enemy)) {
     return false;
   }
   return coordsEqual(enemy.pos, coord);
@@ -1013,7 +1092,7 @@ export function getLegalBlinkTargets(state: GameState, actor: Side, spiritSpend:
       if (distance <= 0 || distance > spiritSpend) {
         continue;
       }
-      if (hasAnyUnitAt(state, target)) {
+      if (isWallAliveAt(state, target)) {
         continue;
       }
       result.push(target);
@@ -1047,7 +1126,7 @@ export function getLegalKoishiRole1Targets(state: GameState, actor: Side): Coord
       if (distance <= 0 || distance > 1) {
         continue;
       }
-      if (hasAnyUnitAt(state, target)) {
+      if (isWallAliveAt(state, target)) {
         continue;
       }
       result.push(target);
@@ -1247,7 +1326,15 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
   if (chebyshevDistance(self.pos, target) > attackRange || coordsEqual(self.pos, target)) {
     return { ok: false, reason: "attack target out of range" };
   }
-  if (!isAttackTargetAt(state, actor, target)) {
+  let resolvedTarget: Coord = { ...target };
+  if (isStealthedEnemyAt(state, actor, target)) {
+    const redirectedTarget = findAttackRedirectTarget(state, actor, target, attackRange);
+    if (!redirectedTarget) {
+      return { ok: false, reason: "no redirect attack target" };
+    }
+    resolvedTarget = redirectedTarget;
+  }
+  if (!isAttackTargetAt(state, actor, resolvedTarget)) {
     return { ok: false, reason: "no valid target in tile" };
   }
 
@@ -1260,19 +1347,20 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
   const canTriggerKoishiPhilosophy =
     attackerIsKoishi &&
     nextPlayers[actor].effects.koishiPhilosophyActive &&
-    coordsEqual(nextPlayers[enemySide].pos, target);
+    coordsEqual(nextPlayers[enemySide].pos, resolvedTarget);
   const koishiExtraDamage = canTriggerKoishiPhilosophy
     ? Math.max(0, getBaseHpByMech(nextPlayers[enemySide].mechId) - nextPlayers[enemySide].stats.hp)
     : 0;
   if (attackerIsKoishi) {
     nextPlayers[actor].effects.koishiStealthTurns = 0;
   }
-  const hitAyaSigil = isAya(state, actor) && hasAyaSigilOnTarget(state.players, state.walls, actor, target);
+  const hitAyaSigil =
+    isAya(state, actor) && hasAyaSigilOnTarget(state.players, state.walls, actor, resolvedTarget);
   if (hitAyaSigil) {
-    clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, target);
+    clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, resolvedTarget);
   }
 
-  if (coordsEqual(nextPlayers[enemySide].pos, target)) {
+  if (coordsEqual(nextPlayers[enemySide].pos, resolvedTarget)) {
     applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements, actor);
   }
   if (canTriggerKoishiPhilosophy) {
@@ -1280,7 +1368,7 @@ function applyAttack(state: GameState, command: Command): ApplyOutcome {
     nextPlayers[actor].effects.koishiPhilosophyHits = 0;
     applyEnemyDamage(nextPlayers, enemySide, koishiExtraDamage, damageAnnouncements, actor);
   }
-  applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
+  applyWallDamage(nextPlayers, nextWalls, actor, resolvedTarget, damage);
   if (isAyaUnit(nextPlayers[actor])) {
     nextPlayers[actor].effects.ayaNextAttackBuff = false;
     activateAyaStealthIfReady(nextPlayers[actor]);
@@ -1387,9 +1475,10 @@ function applyNeedle(state: GameState, command: Command): ApplyOutcome {
     if (!legal) {
       return { ok: false, reason: "illegal koishi role1 target" };
     }
+    const landing: Coord = { ...target };
     const nextPlayers = clonePlayers(state.players);
     nextPlayers[actor].stats.spirit -= command.spirit;
-    nextPlayers[actor].pos = { ...target };
+    nextPlayers[actor].pos = { ...landing };
     nextPlayers[actor].effects.koishiStealthTurns = command.spirit;
     return {
       ok: true,
@@ -1959,6 +2048,7 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
   if (!legal) {
     return { ok: false, reason: "illegal blink target" };
   }
+  const landing: Coord = { ...target };
 
   if (isAya(state, actor)) {
     const nextPlayers = clonePlayers(state.players);
@@ -1968,10 +2058,10 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
     const enemySide = oppositeSide(actor);
     let hitEnemy = false;
 
-    const ray = buildRayPath(self.pos, target);
+    const ray = buildRayPath(self.pos, landing);
     if (ray) {
       for (const hit of ray.cells) {
-        if (coordsEqual(hit.coord, target)) {
+        if (coordsEqual(hit.coord, landing)) {
           break;
         }
         if (applyWallDamage(nextPlayers, nextWalls, actor, hit.coord, damage)) {
@@ -1988,7 +2078,7 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
       0,
       Math.min(nextPlayers[actor].stats.maxSpirit, spiritAfter),
     );
-    nextPlayers[actor].pos = { ...target };
+    nextPlayers[actor].pos = { ...landing };
 
     const winner = getWinnerFromPlayers({
       ...state,
@@ -2014,7 +2104,7 @@ function applyBlink(state: GameState, command: Command): ApplyOutcome {
 
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= command.spirit;
-  nextPlayers[actor].pos = { ...target };
+  nextPlayers[actor].pos = { ...landing };
 
   return {
     ok: true,

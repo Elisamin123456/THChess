@@ -18,7 +18,17 @@ import {
   getLegalMoveTargets,
   getQuickCastTargets,
 } from "./game";
-import { Command, Coord, GameState, Side, SkillId, coordsEqual, isRoleSkillId } from "./protocol";
+import {
+  Command,
+  Coord,
+  GameState,
+  Side,
+  SkillId,
+  chebyshevDistance,
+  coordsEqual,
+  isRoleSkillId,
+  oppositeSide,
+} from "./protocol";
 
 export interface InputState {
   activeSkill: SkillId | null;
@@ -70,6 +80,22 @@ function isAya(ctx: InputContext): boolean {
 
 function isKoishi(ctx: InputContext): boolean {
   return localUnit(ctx).mechId === "koishi";
+}
+
+function getLocalAttackRange(ctx: InputContext): number {
+  const self = localUnit(ctx);
+  if (self.mechId === "aya" && self.effects.ayaNextAttackBuff) {
+    return 2;
+  }
+  return 1;
+}
+
+function isStealthedEnemyAt(ctx: InputContext, coord: Coord): boolean {
+  const enemy = ctx.game.players[oppositeSide(ctx.localSide)];
+  const stealthed =
+    (enemy.mechId === "aya" && enemy.effects.ayaStealthTurns > 0) ||
+    (enemy.mechId === "koishi" && enemy.effects.koishiStealthTurns > 0);
+  return stealthed && coordsEqual(enemy.pos, coord);
 }
 
 function getSpiritSpendBounds(skill: SkillId | null, ctx: InputContext): { min: number; max: number } {
@@ -367,7 +393,12 @@ export function onBoardClick(state: InputState, coord: Coord, ctx: InputContext)
   if (state.activeSkill === "attack") {
     const legal = getLegalAttackTargets(ctx.game, ctx.localSide);
     if (!containsCoord(legal, coord)) {
-      return { next: { ...state } };
+      const selfPos = localUnit(ctx).pos;
+      const inRange =
+        !coordsEqual(selfPos, coord) && chebyshevDistance(selfPos, coord) <= getLocalAttackRange(ctx);
+      if (!inRange || !isStealthedEnemyAt(ctx, coord)) {
+        return { next: { ...state } };
+      }
     }
     return {
       next: {

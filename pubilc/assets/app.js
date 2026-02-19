@@ -1174,12 +1174,56 @@ function isWallAliveInMap(walls, coord) {
 function hasAnyUnitAt(state, coord) {
   return isWallAliveAt(state, coord) || coordsEqual(state.players.blue.pos, coord) || coordsEqual(state.players.red.pos, coord);
 }
+function isStealthedUnit(unit) {
+  return unit.mechId === "aya" && unit.effects.ayaStealthTurns > 0 || unit.mechId === "koishi" && unit.effects.koishiStealthTurns > 0;
+}
+function isStealthedEnemyAt(state, actor, coord) {
+  const enemy = state.players[oppositeSide(actor)];
+  return coordsEqual(enemy.pos, coord) && isStealthedUnit(enemy);
+}
+function pickNearestCoord(anchor, candidates) {
+  let best = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const candidate of candidates) {
+    const dist = chebyshevDistance(anchor, candidate);
+    if (!best || dist < bestDist) {
+      best = candidate;
+      bestDist = dist;
+      continue;
+    }
+    if (dist > bestDist) {
+      continue;
+    }
+    if (candidate.y < best.y || candidate.y === best.y && candidate.x < best.x) {
+      best = candidate;
+    }
+  }
+  return best ? { ...best } : null;
+}
+function findAttackRedirectTarget(state, actor, selectedTarget, range) {
+  const self = state.players[actor];
+  const candidates = [];
+  for (let y = 0; y < BOARD_HEIGHT; y += 1) {
+    for (let x = 0; x < BOARD_WIDTH; x += 1) {
+      const coord = { x, y };
+      const distance = chebyshevDistance(self.pos, coord);
+      if (distance <= 0 || distance > range) {
+        continue;
+      }
+      if (!isAttackTargetAt(state, actor, coord)) {
+        continue;
+      }
+      candidates.push(coord);
+    }
+  }
+  return pickNearestCoord(selectedTarget, candidates);
+}
 function isAttackTargetAt(state, actor, coord) {
   if (isWallAliveAt(state, coord)) {
     return true;
   }
   const enemy = state.players[oppositeSide(actor)];
-  if (isKoishiUnit(enemy) && enemy.effects.koishiStealthTurns > 0) {
+  if (isStealthedUnit(enemy)) {
     return false;
   }
   return coordsEqual(enemy.pos, coord);
@@ -1643,7 +1687,7 @@ function getLegalBlinkTargets(state, actor, spiritSpend) {
       if (distance <= 0 || distance > spiritSpend) {
         continue;
       }
-      if (hasAnyUnitAt(state, target)) {
+      if (isWallAliveAt(state, target)) {
         continue;
       }
       result.push(target);
@@ -1676,7 +1720,7 @@ function getLegalKoishiRole1Targets(state, actor) {
       if (distance <= 0 || distance > 1) {
         continue;
       }
-      if (hasAnyUnitAt(state, target)) {
+      if (isWallAliveAt(state, target)) {
         continue;
       }
       result.push(target);
@@ -1847,7 +1891,15 @@ function applyAttack(state, command) {
   if (chebyshevDistance(self.pos, target) > attackRange || coordsEqual(self.pos, target)) {
     return { ok: false, reason: "attack target out of range" };
   }
-  if (!isAttackTargetAt(state, actor, target)) {
+  let resolvedTarget = { ...target };
+  if (isStealthedEnemyAt(state, actor, target)) {
+    const redirectedTarget = findAttackRedirectTarget(state, actor, target, attackRange);
+    if (!redirectedTarget) {
+      return { ok: false, reason: "no redirect attack target" };
+    }
+    resolvedTarget = redirectedTarget;
+  }
+  if (!isAttackTargetAt(state, actor, resolvedTarget)) {
     return { ok: false, reason: "no valid target in tile" };
   }
   const damage = getAttackDamage(self);
@@ -1856,16 +1908,16 @@ function applyAttack(state, command) {
   const nextWalls = cloneWalls(state.walls);
   const damageAnnouncements = [];
   const attackerIsKoishi = isKoishi(state, actor);
-  const canTriggerKoishiPhilosophy = attackerIsKoishi && nextPlayers[actor].effects.koishiPhilosophyActive && coordsEqual(nextPlayers[enemySide].pos, target);
+  const canTriggerKoishiPhilosophy = attackerIsKoishi && nextPlayers[actor].effects.koishiPhilosophyActive && coordsEqual(nextPlayers[enemySide].pos, resolvedTarget);
   const koishiExtraDamage = canTriggerKoishiPhilosophy ? Math.max(0, getBaseHpByMech(nextPlayers[enemySide].mechId) - nextPlayers[enemySide].stats.hp) : 0;
   if (attackerIsKoishi) {
     nextPlayers[actor].effects.koishiStealthTurns = 0;
   }
-  const hitAyaSigil = isAya(state, actor) && hasAyaSigilOnTarget(state.players, state.walls, actor, target);
+  const hitAyaSigil = isAya(state, actor) && hasAyaSigilOnTarget(state.players, state.walls, actor, resolvedTarget);
   if (hitAyaSigil) {
-    clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, target);
+    clearAyaSigilOnTarget(nextPlayers, nextWalls, actor, resolvedTarget);
   }
-  if (coordsEqual(nextPlayers[enemySide].pos, target)) {
+  if (coordsEqual(nextPlayers[enemySide].pos, resolvedTarget)) {
     applyEnemyDamage(nextPlayers, enemySide, damage, damageAnnouncements, actor);
   }
   if (canTriggerKoishiPhilosophy) {
@@ -1873,7 +1925,7 @@ function applyAttack(state, command) {
     nextPlayers[actor].effects.koishiPhilosophyHits = 0;
     applyEnemyDamage(nextPlayers, enemySide, koishiExtraDamage, damageAnnouncements, actor);
   }
-  applyWallDamage(nextPlayers, nextWalls, actor, target, damage);
+  applyWallDamage(nextPlayers, nextWalls, actor, resolvedTarget, damage);
   if (isAyaUnit(nextPlayers[actor])) {
     nextPlayers[actor].effects.ayaNextAttackBuff = false;
     activateAyaStealthIfReady(nextPlayers[actor]);
@@ -1969,9 +2021,10 @@ function applyNeedle(state, command) {
     if (!legal) {
       return { ok: false, reason: "illegal koishi role1 target" };
     }
+    const landing = { ...target };
     const nextPlayers2 = clonePlayers(state.players);
     nextPlayers2[actor].stats.spirit -= command.spirit;
-    nextPlayers2[actor].pos = { ...target };
+    nextPlayers2[actor].pos = { ...landing };
     nextPlayers2[actor].effects.koishiStealthTurns = command.spirit;
     return {
       ok: true,
@@ -2481,6 +2534,7 @@ function applyBlink(state, command) {
   if (!legal) {
     return { ok: false, reason: "illegal blink target" };
   }
+  const landing = { ...target };
   if (isAya(state, actor)) {
     const nextPlayers2 = clonePlayers(state.players);
     const nextWalls = cloneWalls(state.walls);
@@ -2488,10 +2542,10 @@ function applyBlink(state, command) {
     const damage = floorDamage(self.stats.atk);
     const enemySide = oppositeSide(actor);
     let hitEnemy = false;
-    const ray = buildRayPath(self.pos, target);
+    const ray = buildRayPath(self.pos, landing);
     if (ray) {
       for (const hit of ray.cells) {
-        if (coordsEqual(hit.coord, target)) {
+        if (coordsEqual(hit.coord, landing)) {
           break;
         }
         if (applyWallDamage(nextPlayers2, nextWalls, actor, hit.coord, damage)) {
@@ -2507,7 +2561,7 @@ function applyBlink(state, command) {
       0,
       Math.min(nextPlayers2[actor].stats.maxSpirit, spiritAfter)
     );
-    nextPlayers2[actor].pos = { ...target };
+    nextPlayers2[actor].pos = { ...landing };
     const winner = getWinnerFromPlayers({
       ...state,
       players: nextPlayers2,
@@ -2530,7 +2584,7 @@ function applyBlink(state, command) {
   }
   const nextPlayers = clonePlayers(state.players);
   nextPlayers[actor].stats.spirit -= command.spirit;
-  nextPlayers[actor].pos = { ...target };
+  nextPlayers[actor].pos = { ...landing };
   return {
     ok: true,
     state: {
@@ -3089,6 +3143,18 @@ function isAya2(ctx) {
 function isKoishi2(ctx) {
   return localUnit(ctx).mechId === "koishi";
 }
+function getLocalAttackRange(ctx) {
+  const self = localUnit(ctx);
+  if (self.mechId === "aya" && self.effects.ayaNextAttackBuff) {
+    return 2;
+  }
+  return 1;
+}
+function isStealthedEnemyAt2(ctx, coord) {
+  const enemy = ctx.game.players[oppositeSide(ctx.localSide)];
+  const stealthed = enemy.mechId === "aya" && enemy.effects.ayaStealthTurns > 0 || enemy.mechId === "koishi" && enemy.effects.koishiStealthTurns > 0;
+  return stealthed && coordsEqual(enemy.pos, coord);
+}
 function getSpiritSpendBounds(skill, ctx) {
   if (skill === "build") {
     const max = Math.max(0, Math.floor(localUnit(ctx).stats.spirit));
@@ -3342,7 +3408,11 @@ function onBoardClick(state, coord, ctx) {
   if (state.activeSkill === "attack") {
     const legal = getLegalAttackTargets(ctx.game, ctx.localSide);
     if (!containsCoord2(legal, coord)) {
-      return { next: { ...state } };
+      const selfPos2 = localUnit(ctx).pos;
+      const inRange = !coordsEqual(selfPos2, coord) && chebyshevDistance(selfPos2, coord) <= getLocalAttackRange(ctx);
+      if (!inRange || !isStealthedEnemyAt2(ctx, coord)) {
+        return { next: { ...state } };
+      }
     }
     return {
       next: {
